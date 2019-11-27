@@ -1,0 +1,11 @@
+resx <- read.csv("./Rcode/data2.csv")
+#write.csv(resx, file = "x.csv", row.names = FALSE)
+g_fit <- glm(y~., data = resx, family = binomial("logit"))
+summary(g_fit)
+anova(g_fit)
+plot(g_fit)
+
+g_fit2 <- glm(y~x1+x2+x3+x5, data = resx, family = binomial("logit"))
+summary(g_fit2)
+library(lmtest)
+lrtest(g_fit, g_fit2)

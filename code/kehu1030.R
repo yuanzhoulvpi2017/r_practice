@@ -1,0 +1,139 @@
+library(tidyverse)
+library(tree)
+library(plyr)
+library(class)
+library(rpart)
+library(maptree)
+library(ROCR)
+
+#spam <- read_table2(file.choose(), guess_max = 2000)
+spam <- read_table2("~/Rcode/spambase.tab", guess_max = 2000)
+spam <- spam %>%
+  mutate(y = factor(y, levels = c(0, 1), labels = c("good", "spam"))) %>%
+  mutate_at(.vars = vars(-y), .funs = scale)
+names(spam)
+table(spam$y)
+
+
+calc_error_rate <- function(predicted.value, true.value){
+  return(mean(true.value!=predicted.value))
+}
+
+records = matrix(NA, nrow=3, ncol=2)
+colnames(records) <- c("train.error","test.error")
+rownames(records) <- c("knn","tree","logistic")
+
+
+set.seed(1)
+test.indices = sample(1:nrow(spam), 1000)
+spam.train=spam[-test.indices,]
+spam.test=spam[test.indices,]
+
+
+nfold = 10
+set.seed(1)
+folds = seq.int(nrow(spam.train)) %>% ## sequential obs ids
+  cut(breaks = nfold, labels=FALSE) %>% ## sequential fold ids
+  sample
+
+
+
+#A1######################################################
+do.chunk <- function(chunkid, folddef, Xdat, Ydat, k){
+  train = (folddef!=chunkid)
+  Xtr = Xdat[train,]
+  Ytr = Ydat[train]
+  Xvl = Xdat[!train,]
+  Yvl = Ydat[!train]
+  ## get classifications for current training chunks
+  predYtr = knn(train = Xtr, test = Xtr, cl = Ytr, k = k)
+  ## get classifications for current test chunk
+  predYvl = knn(train = Xtr, test = Xvl, cl = Ytr, k = k)
+  data.frame(train.error = calc_error_rate(predYtr, Ytr),
+             val.error = calc_error_rate(predYvl, Yvl))
+}
+kvec <- c(1, seq(10, 50, length.out=5))
+c_train <- c()
+c_test <- c()
+for (k in kvec) {
+  res<- do.chunk(chunkid = folds, folddef = 1, Xdat = spam.train[, -58], Ydat = spam.train$y, k = k)
+  for (folddef1 in seq(2, 10)) {
+    res2<- do.chunk(chunkid = folds, folddef = folddef1, Xdat = spam.train[, -58], Ydat = spam.train$y, k = k)
+    res <- rbind(res, res2)
+  }
+  c_train <- c(c_train, mean(res[, 1]))
+  c_test <- c(c_test, mean(res[, 2]))
+  cat(k, "\n")
+}
+
+
+plot(kvec, c_train, type = "b", col = "blue", xlab = "k", ylab = "mean_error")
+lines(kvec, c_test, type = "b", col = "red")
+#看图可以发现，选择k = 10是最好的。这样train误差不算大，验证集上误差也是最小。
+
+
+#A2###################################################################################
+result2 <- knn(train = spam.train[, -58], test = spam.test[, -58], cl = spam.train$y, k = 10)
+calc_error_rate(result2, spam.test$y)
+table(result2, spam.test$y)
+
+records[1, ] <- c(
+  calc_error_rate(knn(train = spam.train[, -58], test = spam.train[, -58], cl = spam.train$y, k = 10), spam.train$y),
+  calc_error_rate(result2, spam.test$y)
+)
+records
+
+
+#A3##################################################################################
+spam_tree <- tree(y ~ ., data=spam.train, 
+                   control=tree.control(nobs = 3601,minsize=5, mindev = 1e-5))
+summary(spam_tree)
+#Number of terminal nodes:  149 #有149个节点
+#Misclassification error rate: 0.01361 = 49 / 3601 
+#有49个观察错误
+
+#A4#################################################################################
+findal_k <- cv.tree(spam_tree)
+findal_k$k[(findal_k$size == 10)]
+draw.tree(prune.tree(spam_tree, k = 69.2335), nodeinfo=TRUE) ##这样得到的节点刚好为10个
+
+#A5################################################################################
+
+spam_tree_cv <- cv.tree(spam_tree, FUN = prune.tree,method = "misclass")
+
+plot(spam_tree_cv$size, sqrt(spam_tree_cv$dev / nrow(spam.train)), type = "b",
+     xlab = "Tree Size", ylab = "CV-RMSE")
+#通过上图可以看出。第6, 9个就很好，所以就使用n = 6,
+
+#A6################################################################################
+spamtree.pruned <- prune.tree(spam_tree, best = 6)
+summary(spamtree.pruned)
+draw.tree(spamtree.pruned, nodeinfo = FALSE)
+
+pred_train <- predict(spamtree.pruned, newdata=spam.train[-58], type='class')
+
+pred_test <- predict(spamtree.pruned, newdata=spam.test[-58], type='class')
+
+records[2, ] <- c(calc_error_rate(pred_train, spam.train$y),
+                  calc_error_rate(pred_test, spam.test$y))
+records
+
+
+
+#A8 ############################################################################
+names(spam.train)
+
+glm_obj <- glm(y ~ ., data = spam.train, family = binomial)
+summary(glm_obj)
+
+prob_train <- predict(glm_obj, newdata = spam.train)
+result_train <- ifelse(prob_train <= 0.5, 'good', 'spam')
+calc_error_rate(result_train, spam.train$y)
+
+prob_test <- predict(glm_obj, newdata = spam.test)
+result_test <- ifelse(prob_test <= 0.5, 'good', 'spam')
+calc_error_rate(result_test, spam.test$y)
+
+records[3, ] <- c(calc_error_rate(result_train, spam.train$y),
+                  calc_error_rate(result_test, spam.test$y))
+records

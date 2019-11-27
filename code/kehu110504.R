@@ -1,0 +1,79 @@
+library(tidyverse)
+library(ROCR)
+library(tree) 
+library(maptree) 
+library(class) 
+library(lattice) 
+library(ggridges) 
+library(superheat)
+
+
+
+drug_use <- read_csv("https://archive.ics.uci.edu/ml/machine-learning-databases/00373/drug_consumption.data",
+                          col_names = c('ID','Age','Gender','Education',
+                                        'Country','Ethnicity', 'Nscore',
+                                        'Escore','Oscore','Ascore','Cscore',
+                                        'Impulsive', 'SS','Alcohol','Amphet',
+                                        'Amyl','Benzos','Caff','Cannabis', 
+                                        'Choc','Coke','Crack','Ecstasy','Heroin'
+                                        ,'Ketamine', 'Legalh','LSD','Meth',
+                                        'Mushrooms','Nicotine','Semer','VSA'))
+
+drug_use <- drug_use %>% mutate_at(as.ordered, .vars=vars(Alcohol:VSA)) 
+drug_use <- drug_use %>% mutate(Gender = factor(Gender, labels=c("Male", "Female"))) %>% 
+  mutate(Ethnicity = factor(Ethnicity, labels=c("Black", "Asian", "White", 
+                                                "Mixed:White/Black", "Other", 
+                                                "Mixed:White/Asian", "Mixed:Black/Asian"))) %>% 
+  mutate(Country = factor(Country, labels=c("Australia", "Canada", "New Zealand", 
+                                            "Other", "Ireland", "UK", "USA")))
+
+
+#a
+drug_use <- drug_use %>% mutate(recent_cannabis_use=factor(ifelse(Cannabis >= "CL3", 
+                                                                  "Yes", "No"), 
+                                                           levels=c("No", "Yes")))
+
+
+#b
+drug_use_subset <- drug_use %>% select(Age:SS, recent_cannabis_use)
+
+train_index <- sample(nrow(drug_use_subset), 1500)
+drug_use_train <- drug_use_subset[train_index,] 
+drug_use_test <- drug_use_subset[-train_index,]
+dim(drug_use_train)
+dim(drug_use_test)
+
+#c
+glm_1 <- glm(recent_cannabis_use ~ ., data = drug_use_train, family=binomial(link="logit"))
+summary(glm_1)
+
+
+
+
+
+#2
+
+tree_parameters = tree.control(nobs=nrow(drug_use_train), minsize=10, mindev=1e-3)
+
+#a
+tree_model_1 <- tree(recent_cannabis_use ~ ., data = drug_use_train, 
+                     control = tree_parameters)
+cv_result <- cv.tree(tree_model_1, FUN=prune.misclass)
+plot(cv_result$size, cv_result$dev, type="b",
+     col="red")
+
+#b
+ptree <- prune.tree(tree_model_1,best=8)
+draw.tree(ptree, nodeinfo = TRUE)
+
+#c
+pred_on_test <- predict(ptree, newdata = drug_use_test, class = "class")
+f <- function(x) {return(colnames(pred_on_test)[which.max(pred_on_test[x, ])])}
+pred_on_test_class <- factor(unlist(lapply(1:385, FUN = f)))
+
+#
+result <- table(drug_use_test$recent_cannabis_use,pred_on_test_class)
+result
+
+(tpr <- result[2, 2] / (result[2, 1] + result[2, 2]))
+(fpr <- result[1, 2] / (result[1, 1] + result[1, 2]))
