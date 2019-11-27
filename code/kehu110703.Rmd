@@ -1,0 +1,78 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+#第一次运行要安装这个包
+#install.packages("ROCR")
+```
+
+
+
+```{r}
+data <- read.table("~/Rcode/FleaBeetles.txt", header = FALSE)
+names(data) <- c("Species", "widths", "corr_mean")
+data$Species <- factor(data$Species)#要将Speices变成因子
+head(data)
+```
+
+
+```{r}
+(obj_data <- data.frame("widths" = 190, "corr_mean" = 125)) 
+```
+
+#逻辑回归
+# 注意一下，因为数据量太少，所以模型提醒没有拟合好，这是无法避免的。数据太少。
+```{r}
+model_glm <- glm(Species ~ widths + corr_mean, data = data, 
+                 family = binomial(link="logit"),control=list(maxit=1000))
+summary(model_glm)
+```
+
+
+```{r}
+plot(model_glm)
+```
+
+
+```{r}
+result <- predict(model_glm, newdata = obj_data,type = "response")
+(result <- ifelse(result <= 0.5, 1, 2))
+```
+#*注意一下* 这里上面的一代表第一组数据，因为你只预测一个数据，所以就一个。下面的一代表预测类别。被预测为第一类。
+
+
+#在训练集上查看效果，因为数据太少了，也没法将数据分成训练集和测试集
+```{r}
+library(ROCR)
+
+prob.traing <- predict(model_glm, type = "response")
+pred <- prediction(prob.traing, data$Species)
+perf <- performance(pred, measure = "tpr", x.measure = "fpr")
+plot(perf, col = 2, lwd = 3, main = "ROC curve")
+abline(0, 1)
+```
+#这个AUC，你直接看，应该可以看得懂，这个图结果告诉我们，在训练集上预测的一个都没错。因为*太少了*，没办法。
+
+
+## LDA
+# R的lda在MASS包里面，summary出来的结果是简介
+```{r}
+library(MASS)
+model_lda <- lda(Species ~ widths + corr_mean, data = data)
+summary(model_lda)
+```
+
+
+```{r}
+plot(model_lda)
+```
+
+
+```{r}
+predict(model_lda, newdata = obj_data)
+```
+预测结果说是第一类，预测为1的概率是0.8425942， 预测为2的概率为0.1574058

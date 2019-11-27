@@ -1,0 +1,149 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+  word_document: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+
+#kehu1119001.R
+#ggplot2 添加标题，更改标题位置、画条形图，画折线图、更改x、y坐标轴刻度。让条形图其中一个颜色改变。因子排序，条形图高低排序
+```{r}
+library(readxl)
+jnxs <- read_xlsx("jnxs.xlsx")
+t_jnxs <- as.matrix(jnxs[, -1])
+dim(t_jnxs) <- c(100, 1)
+year <- rep(c(1995:2014), each = 5, time = 20)
+prov <- rep(c("Beijing", "Shanghai","Guangdong", "Hubei","Yunnan"), time = 20)
+
+jnxs_df <- data.frame(jnxs = t_jnxs, year = year, prov = factor(prov))
+library(ggplot2)
+ggplot(data = jnxs_df, aes(x = year, y = jnxs, colour = prov)) + geom_line() +geom_point() +
+  labs(x = NULL, y = NULL) + 
+  scale_x_continuous(breaks = c(1995:2014), labels = c(1995:2014)) +
+  theme(plot.subtitle = element_text(vjust = 1), 
+    plot.caption = element_text(vjust = 1), 
+    axis.ticks = element_line(size = 0.7)) +
+  ggtitle("Gini Coefficient in 5 Provinces in China") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+####################################################
+gdp <- read.csv("gdp2.csv", header = FALSE)
+location <- rep("prov", time = 32)
+location[21] <- as.character(gdp$V1[21])
+gdp$location <- factor(location)
+l_name <- as.character(gdp$V1[order(gdp$V2)])
+gdp$V1 <- ordered(gdp$V1, levels = l_name)
+ggplot(data=gdp, aes(x=V1, y=V2)) + 
+  geom_bar(aes(fill = location),stat="identity") + scale_fill_manual(values=c("red", "gray")) +
+  theme(plot.subtitle = element_text(vjust = 1), 
+          plot.caption = element_text(vjust = 1), 
+          axis.text.x = element_text(angle = -45))+
+  ggtitle("Fixed Assets Investment 2014 Provincial Ranking and Average") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+#####################################################################
+#fa
+fa <- read_xlsx("fa.xlsx")
+fa_v <- as.matrix(fa[, -1])
+dim(fa_v) <- c(21*5)
+prov <- rep(unlist(names(fa)[-1]), each = 21)
+year2 <- rep(fa[,1, drop = TRUE], time = 5)
+fa_df <- data.frame(fa_v = fa_v, year = year2, prov = factor(prov))
+
+
+ggplot(data = fa_df, aes(x = year, y = fa_v, colour = prov)) + geom_point() + geom_line() +
+  labs(x = NULL, y = NULL) + 
+  scale_x_continuous(breaks = c(1994:2014), labels = c(1994:2014)) + 
+  ggtitle("Diverge: 1994-2014 Fixed Asset Investment in 5 Provinces") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+############################################################
+#qgtj
+
+qgtj <- read_xlsx("qgfx.xlsx")
+ggplot(data = qgtj, aes(x = year, y = nature)) + geom_line()+ geom_point() +
+  labs(x = NULL, y = NULL) + 
+  scale_x_continuous(breaks = c(1994:2014), labels = c(1994:2014)) +
+  scale_y_continuous(breaks = seq(from = min(qgtj$nature), to = max(qgtj$nature), length.out = 20),
+                     labels = round(seq(from = min(qgtj$nature), to = max(qgtj$nature), length.out = 20), 2)) +
+  ggtitle("Nationwide Cumulative Amount of Fixed Assets Investment（1994-2014）") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+
+```
+```{r}
+library(ggplot2)
+library(readxl)
+library(tidyverse)
+#plot1
+aa_data <- read_xlsx("aa_new.xlsx", col_names = FALSE)
+colnames(aa_data) <- c("country", "physician_density")
+
+aa_data$country <- factor(aa_data$country, 
+                          levels = aa_data$country[order(aa_data$physician_density,
+                                                         decreasing = TRUE)])
+
+ggplot(data = aa_data, aes(x = country, y = physician_density)) +
+  geom_bar(stat = "identity")  +
+  theme(plot.subtitle = element_text(vjust = 1), 
+        plot.caption = element_text(vjust = 1), 
+        axis.text.x = element_text(angle = -45))+
+  ggtitle(" variation in physician density across OECD countries") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  ylab("physician density")
+  
+ggsave("var_pyhsician_density.png", width = 10, height = 5)
+```
+
+
+```{r}
+
+time_trend_data <- read_xlsx("time_trend2.xlsx", )
+row.names(time_trend_data) <- time_trend_data[, 1, drop = TRUE]
+time_trend_data <- select(time_trend_data, -c("...1"))
+value <- as.matrix(time_trend_data)
+dim(value) <- ncol(time_trend_data) * nrow(time_trend_data)
+country <- rep(rownames(time_trend_data), rep = 34)
+year <- rep(colnames(time_trend_data), each = 5)
+
+time_trend_data_new <- data.frame(value = value,
+                                  country = factor(country),
+                                  year = year)
+
+ggplot(data = time_trend_data_new, aes(x = year, y = value, color = country)) +
+  geom_point() +geom_line(aes(group = country))+
+  theme(plot.subtitle = element_text(vjust = 1), 
+        plot.caption = element_text(vjust = 1), 
+        axis.text.x = element_text(angle = -45))+
+  ggtitle("value with year in five country") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 5, length.out = 20), 
+                     labels = round(seq(from = 0, to = 5, length.out = 20), 2))
+
+ggsave("value_year_country.png", width = 10, height = 5)
+```
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.

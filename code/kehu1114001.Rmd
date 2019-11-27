@@ -1,0 +1,145 @@
+---
+title: "R Notebook"
+output:
+  word_document: default
+  html_notebook: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+##Q1
+```{r}
+library(readstata13)
+DT <- read.dta13("brexit.dta")
+DT <- na.omit(DT)
+```
+
+#a
+```{r}
+plot(DT$b_migr11,DT$pct_leave)
+lm1 <- lm(pct_leave~b_migr11,data = DT)
+summary(lm1)
+```
+从图及线性拟合结果来看，国外出生居民比例越高，支持休假选民的百分比越低.
+
+
+#b
+```{r}
+DT$change_B <- DT$b_migr11-DT$b_migr##移民差异变量（新构造）
+lm2 <- lm(pct_leave~b_migr11+change_B,data = DT)
+summary(lm2)
+```
+从拟合结果来看，移民比例差异与2011年国外出生居民比例两个变量对支持休假选民百分比均有极显著影响.
+
+#c
+从b拟合的系数来看，如果移民比例不变，国外出生居民比例
+```{r}
+DT$pct_leave2 <- 58.0118-1.1623*DT$b_migr11
+DT$pct_leave
+
+ss <- which(DT$pct_leave>50 & DT$pct_leave2<50)
+
+length(ss)/nrow(DT)
+```
+支持比例有变化占比34.41%
+
+#d
+有很多原因，比如两个变量的交互作用，还有什么别的变量的影响，这都很正常.
+
+#e
+```{r}
+formula_lm <- as.formula(paste0("pct_leave~", paste(unlist(names(DT)[5:119]), collapse = "+")))
+lm5 <- lm(formula = formula_lm,data = DT)
+summary(lm5)
+```
+
+
+##Q2
+#a
+```{r}
+DT2 <- read.dta13("prod.dta")
+lms <- lm(log(DT2$va)~log(k)+log(l),data = DT2)
+summary(lms)
+```
+log(k)和log(l)系数之和大于1，所以规模报酬递增
+
+#b
+加入sic3dig分类更有利于生产函数的拟合，因为不同类型的工厂生产要素不同，va l k等变量在不同sic3dig存在明显区别。
+
+#c
+```{r}
+v1 <- which(DT2$sic3dig=="322")
+DT2s <- DT2[v1,]
+lms2 <- lm(log(va)~log(k)+log(l),data = DT2s)
+summary(lms2)
+```
+
+
+```{r}
+v2<- which(DT2$sic3dig=="321")
+DT3s <- DT2[v2,]
+lms3 <- lm(log(va)~log(k)+log(l),data = DT3s)
+summary(lms3)
+```
+
+#因为你之前选的不明显，两个类选择的数量不一样，差距太大。
+从log(k)和log(l)系数和估计来看，321工厂和322工厂存在非常显著的不同
+
+#e
+#固定效应
+```{r}
+DT4S <- subset(DT2, sic3dig %in% c("321","322"))
+DT4S$sic3dig <- factor(DT4S$sic3dig)
+library(plm)
+lms5 <- plm(log(va)~log(k)+log(l) , data = DT4S, index = c("sic3dig"))
+summary(lms5)
+```
+
+##Q3
+
+#a
+```{r}
+DT3 <- read.dta13("dataset4.dta")
+lms <- lm(log(quantity)~log(price)+ice+seas1+seas2+seas3+seas4+seas5+seas6+seas7+seas8+seas9+seas10+seas11+seas12,data = DT3)
+summary(lms)
+```
+从回归系数检验来看，quantity变量主要由price和ice变量影响，与月份变量无显著关系
+
+#b
+```{r}
+DT3$cartel <- factor(DT3$cartel)
+lms_b <- lm(log(quantity)~log(price)+ice+cartel,data = DT3)
+summary(lms_b)
+```
+
+
+```{r}
+library(car)
+lms_b_2 <- lm(log(quantity)~log(price)+ice,data = DT3)
+
+Anova(lms_b, lms_b_2)
+```
+这个是比较加入cartel和不加入cartel的方差检验
+
+```{r}
+confint(lms_b)
+```
+这个是返回各个系数对应的置信区间
+
+
+```{r}
+library(ggplot2)
+ggplot(data = DT3, mapping = aes(x = log(price), y = log(quantity), colour = cartel)) + 
+  geom_point() + geom_smooth(se = FALSE)
+
+```
+
+#有警告，不用管,画图看看，这个直观一点
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.

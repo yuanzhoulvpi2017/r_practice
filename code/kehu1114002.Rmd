@@ -1,0 +1,160 @@
+---
+title: "R Notebook"
+output:
+  word_document: default
+  html_notebook: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(readxl)
+data <- read_xlsx("datahhl.xlsx")
+```
+```{r}
+names(data)
+```
+
+##4 线性关系？？我理解为相关性大于0.1 应该是这样
+```{r}
+library(corrplot)
+corrplot.mixed(cor(data[2:8]))
+```
+
+##Q5
+```{r}
+lm_5 <- lm(`失业率` ~ Gdp, data = data)
+summary(lm_5)
+```
+可以看出来GDP的系数不通过检验。因为他对应的p-value=0.695>0.05。所以系数不显著。
+
+##6
+```{r}
+confint(lm_5, level = 0.99)
+```
+
+```{r}
+library(ggplot2)
+ggplot(data = data, aes(x = `失业率`, y = Gdp)) +geom_point() + 
+  geom_smooth(level = 0.99)
+```
+
+##7
+```{r}
+library(car)
+myh0 <- c("(Intercept) = 3", "Gdp = -2")
+linearHypothesis(lm_5, myh0)
+```
+F检验的F值为1.8212e+11， p-value<2.2e-16 <0.05, 所以接受奥肯定律假设
+
+##8
+#模型的残差
+```{r}
+residuals(lm_5)
+plot(residuals(lm_5))
+```
+#标准化残差
+```{r}
+(std_resduals <- scale(residuals(lm_5)))
+plot(std_resduals)
+```
+
+#学生化残差
+```{r}
+(studres <- rstudent(lm_5))
+plot(studres)
+```
+
+
+##9
+
+#加权最小二乘法
+```{r}
+hhat <- fitted(lm_5)
+lm_5_9 <- lm(`失业率` ~ Gdp, weight = 1/hhat, data = data)
+summary(lm_5_9)
+```
+
+#box-cox法
+```{r}
+library(MASS)
+boxcox_9 <- boxcox(`失业率` ~ Gdp, data = data)
+lambda <- data$`失业率`[which.max(data$`失业率`)]
+shiyelv_bc <- (data$`失业率` ^ lambda - 1)/lambda
+lm_boxcox <- lm(shiyelv_bc ~ Gdp, data = data)
+summary(lm_boxcox)
+
+abse<-abs(resid(lm_boxcox))  # 计算残差的绝对值
+cor.test(data$Gdp,abse,method="spearman")  # 计算残差与gdp的相关系数
+
+```
+
+##10
+#分析
+```{r}
+
+```
+
+##11
+```{r}
+lm_11 <- lm(`失业率`~ Gdp + `第一产业`+`第二产业` + `第三产业`+`价格指数`+`人口`, data = data)
+summary(lm_11)
+```
+
+```{r}
+plot(lm_11)
+```
+
+
+##12
+查看第11题给出的residual vs leverage图，可以看出右下角标记为1的是离散点（因为他大于二倍的cook's distance距离了。
+下面这个方法也显示出第一个是离群点
+```{r}
+library(car)
+outlierTest(lm_11)
+```
+
+删除离群点再分析
+```{r}
+lm_12 <- lm(`失业率`~ Gdp + `第一产业`+`第二产业` + `第三产业`+`价格指数`+`人口`, data = data[-1, ])
+summary(lm_12)
+
+```
+
+
+
+##13
+```{r}
+residplot <- function(fit, nbreaks=10) {
+z <- rstudent(fit)
+hist(z, breaks=nbreaks, freq=FALSE,
+xlab="Studentized Residual",
+main="Distribution of Errors")
+rug(jitter(z), col="brown")
+curve(dnorm(x, mean=mean(z), sd=sd(z)),
+add=TRUE, col="blue", lwd=2)
+lines(density(z)$x, density(z)$y,
+col="red", lwd=2, lty=2)
+legend("topright",
+legend = c( "Normal Curve", "Kernel Density Curve"),
+lty=1:2, col=c("blue","red"), cex=.7)
+}
+
+residplot(lm_11)
+```
+蓝色是正态分布曲线，红色是残差分布曲线，红蓝线差距很小，说明正态性符合比较好。
+
+
+
+
+
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.

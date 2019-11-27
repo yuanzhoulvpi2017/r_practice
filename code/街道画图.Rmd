@@ -1,0 +1,124 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+#https://ggplot2tutor.com/streetmaps/streetmaps/
+
+```{r}
+library(tidyverse)
+library(osmdata)
+```
+
+```{r}
+available_tags('highway')
+```
+
+```{r}
+available_features()
+```
+
+```{r}
+getbb("Shanghai in China")
+```
+
+```{r}
+
+streets <- getbb("Beijing China") %>%
+  opq() %>%
+  add_osm_feature(key = "highway",
+                  value = c("motorway", "primary",
+                            "secondary", "tertiary")) %>%
+  osmdata_sf()
+streets
+```
+
+```{r}
+small_streets <- getbb("Beijing China")%>%
+  opq()%>%
+  add_osm_feature(key = "highway", 
+                  value = c("residential", "living_street",
+                            "unclassified",
+                            "service", "footway")) %>%
+  osmdata_sf()
+
+river <- getbb("Beijing China")%>%
+  opq()%>%
+  add_osm_feature(key = "waterway", value = "river") %>%
+  osmdata_sf()
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = streets$osm_lines,
+          inherit.aes = FALSE,
+          color = "black",
+          size = 0.4,
+          alpha = 0.8)+
+  coord_sf(xlim = c(116, 117), 
+           ylim = c(39.59, 40.6),
+           expand = FALSE)
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = streets$osm_lines,
+          inherit.aes = FALSE,
+          color = "black",
+          size = .4,
+          alpha = .8) +
+  geom_sf(data = small_streets$osm_lines,
+          inherit.aes = FALSE,
+          color = "black",
+          size = .4,
+          alpha = .6) +
+  geom_sf(data = river$osm_lines,
+          inherit.aes = FALSE,
+          color = "black",
+          size = .2,
+          alpha = .5) +
+        coord_sf(xlim = c(116.2, 116.5), 
+                 ylim = c(39.8, 40),
+                 expand = FALSE) 
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = streets$osm_lines,
+          inherit.aes = FALSE,
+          color = "#7fc0ff",
+          size = .4,
+          alpha = .8) +
+  geom_sf(data = small_streets$osm_lines,
+          inherit.aes = FALSE,
+          color = "#ffbe7f",
+          size = .2,
+          alpha = .6) +
+  geom_sf(data = river$osm_lines,
+          inherit.aes = FALSE,
+          color = "#ffbe7f",
+          size = .2,
+          alpha = .5)+
+        coord_sf(xlim = c(116.25, 116.5), 
+                 ylim = c(39.8, 40),
+                 expand = FALSE)  +
+  theme_void() +
+  theme(
+    plot.background = element_rect(fill = "#282828")
+  )
+```
+
+
+
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.

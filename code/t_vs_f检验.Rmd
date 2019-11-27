@@ -1,0 +1,53 @@
+---
+title: "在多重共线性下比较f检验和t检验"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook: default
+---
+
+# 生成数据
+#这里设置随机种子，保证可重复性
+#rnorm生成正太分布随机数，其实就是为了制造噪声
+```{r}
+library(mvtnorm)
+
+```
+
+
+# 这里看各个变量之间的相关性
+```{r}
+cor(data1)
+```
+
+
+# 开始回归
+```{r}
+lm_1 <- lm(y ~ ., data = data1)
+summary(lm_1)
+```
+可以看出来只有x3的回归系数通过检验(1.98e-08<0.05)，而截距项、x1、x2的回归系数没有通过检验。
+但是F检验对应的p-value:2.2e-16 < 0.05，说明y和x1、x2、x3的关系是显著相关的。这不符合上面t检验的结果
+
+```{r}
+library(car)
+vif(lm_1)
+```
+这个vif是方差膨胀因子，大于10就说明有严重的多重共线性。这里x1、x2、x3就远大于10。
+
+
+# 用逐步回归法消除多重共线性
+```{r}
+step_lm <- step(lm_1)
+```
+
+
+# 根据逐步回归选择最后一步再次建立线性回归
+```{r}
+lm_2 <- lm(y ~ x1 + x3, data = data1)
+summary(lm_2)
+```
+
+得出最终结果为：y = 0.6178 * x1 - 1.1052 * x3

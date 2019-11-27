@@ -1,0 +1,107 @@
+---
+title: "Assignment -- Linear Regression"
+author: "WANG JIABIN"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+    theme: readable
+---
+
+
+### Problem Statement
+
+
+In this exercise, we are interested in predicting a patient's length of stay (LOS) in the intensive care unit (ICU) using his or her demographic information and the worst reading of critical clinical variables during the first 24-hour stay in the ICU. We will use the data contained in the file "Assignment_Linear_Regression_Data_Train.csv" to build models, and "Assignment_Linear_Regression_Data_Test.csv" will be used in out-of-sample validation. 
+
+
+### Questions
+
+
+1. Load and explore the training data file, check summary statistics of all the variables, and answer the following questions.
+
+```{r}
+train <- read.csv("~/Rcode/Assignment_Linear_Regression_Data_Train.csv", header = TRUE, stringsAsFactors = FALSE)
+test <- read.csv("~/Rcode/Assignment_Linear_Regression_Data_Test.csv", header = TRUE, stringsAsFactors = FALSE)
+```
+
+    i) What is the average age of the patients?
+
+```{r}
+mean(train$Age)
+```
+
+    ii) What is the percentage of male patients?
+```{r}
+prop.table(table(train$Gender))[2]
+
+```
+
+
+2. Build a linear regression model to predict the LOS using vital signs (check the data description file to identify the list of vital signs). Use the training set to build the model.
+
+```{r}
+(vital_sign <- names(train)[5:10])
+new_data <- train[, c(vital_sign, "LOS")]
+which(!complete.cases(new_data)) #空说明没有缺失值
+lm1 <- lm(LOS ~ ., data = new_data)
+summary(lm1)
+```
+
+
+    i) What is the linear regression equation produced by your model? Make sure to give the coefficients for each of the independent variables.
+    观察上面结果可以看出LOS只和DiastolicBP有明显的线性关系（因为只有DiastolicBP的系数显著）那么函数方程为：$LOS = -1.40764 * DiastolicBP$ （上面还有很多信息，你可以再补充）
+
+     
+    ii) What is the $R^2$ of the model?
+     上面的Multiple R-squared:  0.02237,	Adjusted R-squared:  0.01646就是$R^2$
+     一般看调整的$R^2$
+    iii) Which variables are significant? We consider a variable significant only if its *p*-value is below 0.05.
+    上面就DiastolicBP这个变量显著，对应的p=0.00861< 0.05 
+
+3. We want to improve our linear regression model by including all the variables in the analysis. 
+
+    i) What is the $R^2$ of the new model?
+```{r}
+lm2 <- lm(LOS ~ ., data = train)
+summary(lm2)
+```
+     
+    ii) Which variables are significant? Build another linear regression model using only these significant variables. What is the adjusted $R^2$?
+    上面显示ArterialpO2、Creatinine、Urea、GCS这4个变量的系数显著，因为他们对应的p-value<0.05
+    iii) What do you think about the accuracy and values of the model?
+    这个问题不能简单地看模型的mse（均方误差）。你要看残差是否符合白噪声（代表信息是否被模型完全提取）还要看是否有异常值影响这个模型
+    下面这个图.
+    右上角的normal Q-Q是检验残差是否为正态分布的，很明显这个train里面有异常点，899、925、409这几个点对模型有很大的影响。造成模型不够完美。
+    左下角是（位置尺度图）水平线周围应该布满点，说明这个线性模型满足不变方差假设。这个图还是被这个几个异常点干扰了。
+    左上角（残差图和拟合图）如果残差符合白噪声，说明模型将数据的信息全都提取出来了，这个图看起来还可以，但是被几个异常点给干扰了。
+    右下角（残差与杠杆图）这个图就是检验异常点的，可以看出来，还是那几个点。
+    这是我的意见。你可以参考一下
+```{r}
+par(mfrow = c(2, 2))
+plot(lm2)
+```
+    
+
+
+4. We want to test the performance of our models using the test data set. 
+
+    i) What is the out-of-sample $R^2$ of the model using all the variables? Please check carefully how the out-of-sample $R^2$ is computed in the lecture note for the wine case study. Note that the benchmark baseline model is still the historical average price of the training data set, not the average price of the test data set. The point here is that the benchmark model also does not know the future, and it cannot use the future average price to predict the future. 
+```{r}
+predict_train <- predict(lm2, data = train)
+SSE <- sum((train$LOS - predict_train)^2)
+SST <- sum((train$LOS - mean(predict_train))^2)
+1 - SSE / SST
+```
+    
+    ii) What is the out-of-sample $R^2$ of our first model using only vital signs?
+```{r}
+predict_1 <- predict(lm1, data = new_data)
+SSE <- sum((new_data$LOS - predict_1)^2)
+SST <- sum((new_data$LOS - mean(predict_1))^2)
+1 - SSE / SST
+```
+
+
+

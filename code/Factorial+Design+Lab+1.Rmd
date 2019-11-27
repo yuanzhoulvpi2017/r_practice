@@ -1,0 +1,172 @@
+---
+title: "Factorial designs activity 1"
+output: html_notebook
+---
+
+
+# Front Matter
+
+*Before you begin, load the any packages you will use and load the following datasets for this lab activity (download from Canvas):*
+
+- Part 1: `computer_monitors.csv`
+- Part 2: `pilot_training_data.csv`
+
+```{r}
+# clean up
+rm(list=ls())
+
+# packages
+library(tidyverse)
+library(mosaic)
+
+# data intake
+monitors <- read_csv("~/Rcode/computer_monitors.csv")
+
+
+```
+
+# Part 1: 2-level factorial design with replicates
+
+*In this activity you analyze the results of a study on computer monitor design. There are four factors, and the response indicates failure rate of the computer monitor:*
+
+- `clearance`: {low; high} clearance under the base  
+- `board_height`: {low; high} interface board height
+- `vent_size`: {small; large} side vent size
+- `board_angle`: {low; high} interface board angle
+- `Y`: **response variable**; quantitative measurement of failure rate; Lower values of Y correspond to higher product quality.
+
+
+**Task 1.1** How many factor combinations are there for this study?
+
+有2x2x2x2 = 16个
+
+
+## 1.2 EDA
+
+*After downloading the data from Canvas, load them and perform a quick EDA to answer the questions below.  You may want to use the sample code supplied to get you started.*
+
+```{r}
+favstats(Y ~ clearance, data = monitors)
+```
+
+
+**Task 1.2.1** How many replicates are there for each combination of factors?
+
+这个啥意思，不懂
+
+ 
+**Task 1.2.2** Use the data to estimate the main effects **without** fitting a model.
+
+```{r}
+#names(monitors)
+res_clearance    <- favstats(Y ~ clearance, data = monitors)
+res_board_height <- favstats(Y ~ board_height, data = monitors)
+res_vent_size    <- favstats(Y ~ vent_size, data = monitors)
+res_board_angle  <- favstats(Y ~ board_angle, data = monitors)
+
+res_clearance$median[1]    - res_clearance$median[2]   
+res_board_height$median[1] - res_board_height$median[2]
+res_vent_size$median[1] - res_vent_size$median[2]
+res_board_angle$median[1] - res_board_angle$median[2]
+```
+
+看上面几个表可以发现，board_height、vent_size、borad_angle的因子对Y造成的median都有非常大的小的差距，也就是说不同的因子对Y的中位数没啥影响虽然有的也差了0.4左右.但是clearance不同因子对Y的median造成的差距是3.965 - 3.375 = 0.69, vent_size里面的因子对Y的中位数差距为0.41，所以估计对Y也相关
+
+
+
+## 1.3 Fitting the full model
+
+*Before we fit the full model to the data, we recode the variables to effect coding, `-1` and `+1`, as discussed in class. The provided code can accomplish this for you (using `recode` from `dplyr`).* 
+
+
+```{r}
+monitors <- 
+  monitors %>%
+  mutate(clearance = recode(clearance, "low" = -1, "high" = 1)) %>%
+  mutate(board_height = recode(board_height, "low" = -1, "high" = 1)) %>%
+  mutate(vent_size = recode(vent_size, "small" = -1, "large" = 1)) %>%
+  mutate(board_angle = recode(board_angle, "low" = -1, "high" = 1)) 
+```
+
+*Hint: sample code to fit the full model with four factors including all interactions:* 
+`lm(Y ~ .^4, data = monitors)`
+
+
+**Task 1.3.1** Fit the full model with all three factors and all interactions using the `lm()` function.  Describe the model.  Which main effects are significant?  Which interactions are significant?
+
+```{r}
+fit1 <- lm(Y ~ ., data = monitors)
+summary(fit1)
+```
+
+intercept、clearance是显著的，因为pr都小于0.05（屁股后面都有星号）
+
+**Task 1.3.2** What do you notice about your estimates for the main effects and the estimates for the same effects in your model above?
+
+#刚开始我估计的是clearance、vent_size对Y有影响，但是实际上只有clearance对Y有影响
+
+
+# Part 2: Unreplicated data
+
+*In Part 1, we had a relatively small number of factors and replicated data, but this will not always be the case.  In this part, consider `pilot_training_data.csv`, which were collected to investigate the effects of five factors on the learning rates of flight trainees when using flight simulators.  The variables are:*
+ 
+- `Y`: **response variable**; the average squared distance from the optimal flight path for 12 landing attempts by the trainee.
+- `display_type`: (-1 = symbolic; 1 = pictorial)
+- `display_orientation`: (-1 = outside in; 1 = inside out)
+- `crosswind`: (-1 = no wind present; 1: crosswind present)
+- `command_guidance`: (-1 = constant guidance; 1 = guidance only when trainee spreads far from best path)
+- `prediction`: (-1: no prediction, 1: constant prediction)
+
+```{r}
+pilot <- read_csv("~/Rcode/pilot_training_data.csv")
+str(pilot)
+```
+
+## 2.1 Intuition
+
+*BEFORE you fit the model, answer the questions below (and don't change your answers after you fit the model!)*
+
+**Task 2.1.1** Which main effects do you think will be significant?  
+
+
+这个就是猜测，训练直觉的，我猜测有没有指导和有没有风对结果有影响即：crosswind、command_guidance
+
+**Task 2.1.2** Do you think there will be any significant second-order interactions?
+
+是否有交互作用？？我举得肯定会有的，
+
+
+## 2.2 Fitting the full model
+
+*Fit the full model, including all possible interactions, and obtain estimates for all coefficients to complete the following tasks.*
+
+```{r}
+fit2 <- lm(Y ~ ., data = pilot)
+summary(fit2)
+```
+
+**Task 2.2.1** What is the most noticeable thing about the summary of the model you just fit?  
+
+我觉得最应该注意的有R-squared,还有每个系数的Pr(>|t|)
+
+
+**Task 2.2.2** Can you determine which effects and interactions are significant?
+
+```{r}
+fit3 <- lm(Y ~ display_type + display_orientation + crosswind + command_guidance + prediction + 
+             display_type:display_orientation +
+             crosswind:command_guidance
+           , data = pilot)
+summary(fit3)
+```
+
+时间问题，我就不加了，你看，你只要像是上面crosswind:command_guidance就是表示crosswind、command_guidance这两个的变量的相互作用。你再看他们后面的pr(>t)或者看后面有没有*或者.，就说明对Y显著不显著
+
+## 2.3 Normal probability plot
+
+*To produce the normal probability plot and Pareto chart on an `lm` object named `full_model` you can use the code below (no task):*
+
+```{r}
+qqnorm(fit2$coefficients[-1], pch=19); qqline(fit2$coefficients[-1])
+```
+

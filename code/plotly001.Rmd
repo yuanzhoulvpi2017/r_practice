@@ -1,0 +1,203 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(plotly)
+
+trace_0 <- rnorm(100, mean = 5)
+trace_1 <- rnorm(100, mean = 0)
+trace_2 <- rnorm(100, mean = -5)
+x <- c(1:100)
+
+data <- data.frame(x, trace_0, trace_1, trace_2)
+
+p <- plot_ly(data, x = ~x, y = ~trace_0, name = 'trace 0', type = 'scatter', mode = 'lines') %>%
+  add_trace(y = ~trace_1, name = 'trace 1', mode = 'lines+markers') %>%
+  add_trace(y = ~trace_2, name = 'trace 2', mode = 'markers')
+p
+```
+```{r}
+library(plotly)
+
+d <- diamonds[sample(nrow(diamonds), 1000), ]
+
+p <- plot_ly(
+  d, x = ~carat, y = ~price,
+  color = ~carat, size = ~carat
+)
+p
+```
+```{r}
+trace_0 <- rnorm(100, mean = 5)
+trace_1 <- rnorm(100, mean = 0)
+trace_2 <- rnorm(100, mean = -5)
+x <- c(1:100)
+
+data <- data.frame(x, trace_0, trace_1, trace_2)
+
+plot_ly(data = data, x = ~x) %>%
+  add_trace(y = ~trace_0, name = "trace 0", mode = "lines") %>%
+  add_trace(y = ~trace_1, name = "trace 1", mode = "lines+markers") %>%
+  add_trace(y = ~trace_2, name = "trace 2", mode = "markers")
+```
+```{r}
+month <- c('January', 'February', 'March', 'April', 'May', 'June', 'July',
+         'August', 'September', 'October', 'November', 'December')
+high_2000 <- c(32.5, 37.6, 49.9, 53.0, 69.1, 75.4, 76.5, 76.6, 70.7, 60.6, 45.1, 29.3)
+low_2000 <- c(13.8, 22.3, 32.5, 37.2, 49.9, 56.1, 57.7, 58.3, 51.2, 42.8, 31.6, 15.9)
+high_2007 <- c(36.5, 26.6, 43.6, 52.3, 71.5, 81.4, 80.5, 82.2, 76.0, 67.3, 46.1, 35.0)
+low_2007 <- c(23.6, 14.0, 27.0, 36.8, 47.6, 57.7, 58.9, 61.2, 53.3, 48.5, 31.0, 23.6)
+high_2014 <- c(28.8, 28.5, 37.0, 56.8, 69.7, 79.7, 78.5, 77.8, 74.1, 62.6, 45.3, 39.9)
+low_2014 <- c(12.7, 14.3, 18.6, 35.5, 49.9, 58.0, 60.0, 58.6, 51.7, 45.2, 32.2, 29.1)
+
+data <- data.frame(month, high_2000, low_2000, high_2007, low_2007, high_2014, low_2014)
+
+#The default order will be alphabetized unless specified as below:
+data$month <- factor(data$month, levels = data[["month"]])
+
+plot_ly(data, x = ~month, y = ~high_2014, name = 'High 2014', type = 'scatter', mode = 'lines',
+        line = list(color = 'rgb(205, 12, 24)', width = 4)) %>%
+  add_trace(y = ~low_2014, name = 'Low 2014', line = list(color = 'rgb(22, 96, 167)', width = 4)) %>%
+  add_trace(y = ~high_2007, name = 'High 2007', line = list(color = 'rgb(205, 12, 24)', width = 4, dash = 'dash')) %>%
+  add_trace(y = ~low_2007, name = 'Low 2007', line = list(color = 'rgb(22, 96, 167)', width = 4, dash = 'dash')) %>%
+  add_trace(y = ~high_2000, name = 'High 2000', line = list(color = 'rgb(205, 12, 24)', width = 4, dash = 'dot')) %>%
+  add_trace(y = ~low_2000, name = 'Low 2000', line = list(color = 'rgb(22, 96, 167)', width = 4, dash = 'dot')) %>%
+  layout(title = "Average High and Low Temperatures in New York",
+         xaxis = list(title = "Months"),
+         yaxis = list (title = "Temperature (degrees F)"))
+
+```
+```{r}
+library(plotly)
+library(plyr)
+
+tg <- ddply(ToothGrowth, c("supp", "dose"), summarise, length=mean(len))
+
+plot_ly(tg, x = ~dose, y = ~length, type = 'scatter', mode = 'lines', linetype = ~supp, color = I('black')) %>%
+  layout(title = 'The Effect of Vitamin C on Tooth Growth in Guinea Pigs by Supplement Type',
+         xaxis = list(title = 'Dose in milligrams/day'),
+         yaxis = list (title = 'Tooth length'))
+
+```
+```{r}
+plot_ly(
+  labels = c("Eve", "Cain", "Seth", "Enos", "Noam", "Abel", "Awan", "Enoch", "Azura"),
+  parents = c("", "Eve", "Eve", "Seth", "Seth", "Eve", "Eve", "Awan", "Eve"),
+  values = c(65, 14, 12, 10, 2, 6, 6, 4, 4),
+  type = 'sunburst',
+  branchvalues = 'total'
+)
+```
+```{r}
+d1 <- read.csv('https://raw.githubusercontent.com/plotly/datasets/master/coffee-flavors.csv')
+d2 <- read.csv('https://raw.githubusercontent.com/plotly/datasets/718417069ead87650b90472464c7565dc8c2cb1c/sunburst-coffee-flavors-complete.csv')
+plot_ly() %>%
+  add_trace(
+    ids = d1$ids,
+    labels = d1$labels,
+    parents = d1$parents,
+    type = 'sunburst',
+    maxdepth = 2,
+    domain = list(column = 0)
+    ) %>%
+  add_trace(
+    ids = d2$ids,
+    labels = d2$labels,
+    parents = d2$parents,
+    type = 'sunburst',
+    maxdepth = 3,
+    domain = list(column = 1)
+  ) %>%
+    layout(
+      grid = list(columns =2, rows = 1),
+      margin = list(l = 0, r = 0, b = 0, t = 0),
+      sunburstcolorway = c(
+        "#636efa","#EF553B","#00cc96","#ab63fa","#19d3f3",
+        "#e763fa", "#FECB52","#FFA15A","#FF6692","#B6E880"
+      ),
+      extendsunburstcolors = TRUE)
+```
+```{r}
+library(plotly)
+
+data <- read.csv("https://raw.githubusercontent.com/plotly/datasets/master/gapminderDataFiveYear.csv")
+
+data_2007 <- data[which(data$year == 2007),]
+data_2007 <- data_2007[order(data_2007$continent, data_2007$country),]
+data_2007$size <- data_2007$pop
+colors <- c('#4AC6B7', '#1972A4', '#965F8A', '#FF7070', '#C61951')
+
+plot_ly(data_2007, x = ~gdpPercap, y = ~lifeExp, z = ~pop, color = ~continent, size = ~size, colors = colors,
+             marker = list(symbol = 'circle', sizemode = 'diameter'), sizes = c(5, 150),
+             text = ~paste('Country:', country, '<br>Life Expectancy:', lifeExp, '<br>GDP:', gdpPercap,
+                           '<br>Pop.:', pop)) %>%
+  layout(title = 'Life Expectancy v. Per Capita GDP, 2007',
+         scene = list(xaxis = list(title = 'GDP per capita (2000 dollars)',
+                      gridcolor = 'rgb(255, 255, 255)',
+                      range = c(2.003297660701705, 5.191505530708712),
+                      type = 'log',
+                      zerolinewidth = 1,
+                      ticklen = 5,
+                      gridwidth = 2),
+               yaxis = list(title = 'Life Expectancy (years)',
+                      gridcolor = 'rgb(255, 255, 255)',
+                      range = c(36.12621671352166, 91.72921793264332),
+                      zerolinewidth = 1,
+                      ticklen = 5,
+                      gridwith = 2),
+               zaxis = list(title = 'Population',
+                            gridcolor = 'rgb(255, 255, 255)',
+                            type = 'log',
+                            zerolinewidth = 1,
+                            ticklen = 5,
+                            gridwith = 2)),
+         paper_bgcolor = 'rgb(243, 243, 243)',
+         plot_bgcolor = 'rgb(243, 243, 243)')
+
+```
+```{r}
+library(plotly)
+df <- read.csv('https://raw.githubusercontent.com/plotly/datasets/master/2014_us_cities.csv')
+
+df$q <- with(df, cut(pop, quantile(pop)))
+levels(df$q) <- paste(c("1st", "2nd", "3rd", "4th", "5th"), "Quantile")
+df$q <- as.ordered(df$q)
+
+g <- list(
+  scope = 'usa',
+  projection = list(type = 'albers usa'),
+  showland = TRUE,
+  landcolor = toRGB("gray85"),
+  subunitwidth = 1,
+  countrywidth = 1,
+  subunitcolor = toRGB("white"),
+  countrycolor = toRGB("white")
+)
+
+plot_geo(df, locationmode = 'USA-states', sizes = c(1, 250)) %>%
+  add_markers(
+    x = ~lon, y = ~lat, size = ~pop, color = ~q, hoverinfo = "text",
+    text = ~paste(df$name, "<br />", df$pop/1e6, " million")
+  ) %>%
+  layout(title = '2014 US city populations<br>(Click legend to toggle)', geo = g)
+
+
+```
+```{r}
+#3d
+plot_ly(z = ~volcano) %>% add_surface()
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.

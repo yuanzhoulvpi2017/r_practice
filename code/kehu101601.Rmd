@@ -1,0 +1,68 @@
+---
+title: "R Notebook"
+output:
+  word_document: default
+  html_notebook: default
+---
+
+
+
+```{r}
+library(readxl)
+data <- read_xlsx(file.choose())
+
+```
+# 1双对数模型
+```{r}
+
+lm1 <- lm(log(data$GNP) ~ log(data$M2))
+summary(lm1)
+```
+上面得到的方程就是：log(GNP) = 0.55312 + 0.98822 * log(M2)
+R平方就是Adjusted R-squared:  0.9921
+
+# 2增长模型（对数-线性模型）
+```{r}
+
+lm2 <- lm(log(data$GNP) ~ data$M2)
+summary(lm2)
+```
+上面得到的方程就是：log(GNP) = 6.862 + 5.705 /10^4 * log(M2)
+R平方就是Adjusted R-squared:  0.9454
+# 3线性对数模型
+```{r}
+
+lm3 <- lm(data$GNP ~ log(data$M2))
+summary(lm3)
+```
+上面得到的方程就是：GNP = -16328.64 + 2584.79 * log(M2)
+R平方就是Adjusted R-squared:  0.9819
+
+# 4线性模型
+```{r}
+
+lm4 <- lm(data$GNP ~ data$M2)
+summary(lm4)
+```
+上面得到的方程就是：GNP = 1.53234 * M2
+R平方就是Adjusted R-squared:  0.9908
+
+
+# 第7问是不是可以比较R^2
+不是的，你看ppt的42页，要有截距项才可以，在所作的线性模型（第四个）里面，截距项系数不显著，舍去，这里的R^2就不能比较。
+
+# 第8问哪个模型最好？？
+我觉得1双对数模型最好，他们系数都显著，而且R^2很大。（具体你自己定）
+
+
+
+# add
+```{r}
+x=c(1:9)
+y=c(0.5,2.3,3.4,24,54.7,82.1,94.8,96.2,96.4)
+nlsl=nls(y~a-a/(1+(x/c)^b),start=list(a=100,b=5,c=4.8))
+summary(nlsl)
+```
+
+
+

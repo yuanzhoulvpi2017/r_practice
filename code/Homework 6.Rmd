@@ -1,0 +1,166 @@
+---
+title: "Homework 6"
+author: "Junning Peng"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: TRUE 
+    theme: paper 
+    highlight: espresso
+---
+用afex_plot和cowplot::plot_grid 在一张图里放入4个ANOVA
+ANOVA在107行
+
+# Homework Week 6
+**Main Research Question: whether the third-person perspective will lead to higher support judgements than the second-person perspectiv.** 
+
+**Additional Research Question: the level of the support of the third-person perspective and the second-person perspective compared to the more netural passive condition and no-justification condtion. **
+
+**Data Set**
+
+```{r echo=FALSE, message=FALSE}
+setwd("/Users/apple/Desktop/RStudio")
+library("tidyverse")
+d1 <- read.csv("cornwell_krantz_2014_s2.csv") %>%
+  mutate(
+    condition = 
+      factor(
+        condition,
+        levels = 1:4,
+        labels = c("third-person","second-person","passive","no-justification")
+      ))
+
+d1 %>%
+  select(id:unintended) %>%
+  glimpse
+
+```
+
+## Task 1
+
+Based on the table below, I can tell that all the participants have the *same* number of observations.
+
+```{r, echo=FALSE}
+d1 %>% 
+  count(id, var = "id")
+```
+
+Based on the table below, I found that there are **74**, **77**, **76** and **73** participants respectively in each condition.
+```{r, echo=FALSE}
+count(d1 %>%
+  count(id,condition),
+  condition)
+```
+
+Based on the tibble below, I arranged the number of times each scenario appeared on one of the conditions.
+```{r echo=FALSE}
+I <- count(d1[d1$condition == "second-person",],scenario)
+II <- count(d1[d1$condition == "third-person",],scenario)
+III <- count(d1[d1$condition == "passive",],scenario)
+IV <- count(d1[d1$condition == "no-justification",],scenario)
+
+Task1 <- tibble(
+  Scenario = 1:16,
+    Second_person = I$n,
+    Third_Person = II$n,
+    Passive = III$n,
+    No_justification = IV$n
+  )
+print(Task1)
+```
+
+## Task 2 
+```{r,echo=FALSE, message= FALSE}
+sup <- ggplot(d1, aes(x = condition, y = support)) +
+  geom_boxplot(outlier.colour = NA) +
+  stat_summary(color = "red")
+
+library("afex")
+afex::set_treatment_contrasts()
+lm1 <- lm(support ~ condition, d1)
+print(sup)
+summary(lm1)
+```
+
+Based on this treatment-contrasted linear regression output table, we can find that the expected support level for a policy under third person description is 4.27703, which is **significantly differs from zero**. The expected support level under **second-person and no-justification description also differs significantly** from thirs-person condition. Description under **passive tense does not differ significantly** from the third-person condition.
+
+```{r,echo=FALSE, message= FALSE}
+afex::set_sum_contrasts()
+lm2 <- lm(support ~ condition, d1)
+summary(lm2)
+
+d1 %>%
+  group_by(condition) %>%
+  summarise(mean = mean(support)) %>%
+  mutate(gr_mean = mean(mean)) %>%
+  mutate(diff = mean - gr_mean)
+
+sum(coef(lm2)[-1])
+```
+Based on this linear regession, it tells us about the **differnce** between the expected level of support under each description and the grouped mean of the overall respons in supporting a policy.
+Note: 
+
+condition1 = third-person
+
+condition2 = second-person
+
+condition3 = passive
+
+```{r,echo=FALSE, message=FALSE}
+#这个是我想要plot的ANOVA，其他的三个anova在116-132行的两个和143-145行的一个
+#做图的code我放在了157行
+afex::set_sum_contrasts()
+lm3 <- lm(support ~ condition, d1)
+car::Anova(lm3,type = 3)
+```
+According to the result, we can state that there is at **least one** pair has a significant difference compare to each other in resulting the level of support. ANOVA tests the null hypothesis ‘all group means are the same’ so the resulting p-value only concludes whether or not there is a difference between one or more pairs of groups.
+**Rest DVs (achieve & unintended)**
+
+```{r,echo=FALSE, message=FALSE}
+afex::set_sum_contrasts()
+lm4 <- lm(achieve ~ condition, d1)
+car::Anova(lm4,type = 3)
+
+sup2 <- ggplot(d1, aes(x = condition, y = achieve)) +
+  geom_boxplot(outlier.colour = NA) +
+  stat_summary(color = "red")
+print(sup2)
+
+afex::set_sum_contrasts()
+lm5 <- lm(unintended ~ condition, d1)
+car::Anova(lm5,type = 3)
+
+sup3 <- ggplot(d1, aes(x = condition, y = unintended)) +
+  geom_boxplot(outlier.colour = NA) +
+  stat_summary(color = "red")
+print(sup3)
+```
+
+Based on the results above, we find that the level suppot and achieve was affected significantly by conditions, and we fail to find the level of unintended was affected significantly by conditions.
+
+## Task 3
+```{r}
+#Step One: Creating the composite score
+d1 <- d1 %>%
+mutate(acceptability = (support + achieve + (8 - unintended))/3)
+#Step Two: AVNOVA Analysis with the combination of lm and car::Anova
+afex::set_sum_contrasts()
+lm6 <- lm(acceptability ~ condition, d1)
+car::Anova(lm6,type = 3)
+#Step Thrr: AVNOVA Analysis with afex
+library("afex")
+aov1 <- aov_car(acceptability ~ condition + Error(id), d1)
+aov1
+```
+Problem: 
+  1.the combination lm and car::Anova has the degree of freedom 2396 however the afex has the degree of freedom 296. I understand that there are only 300 participants, but for each participant they have 8 questions.
+  2.what types of error() should we use?
+
+## Task 4
+```{r}
+#这个是我用的code，我最后想要做把这个四个ANOVA放在同一张图里
+plot1 <- afex_plot(d1, x = "condition", trace = "support") 
+```
+
+  
+        

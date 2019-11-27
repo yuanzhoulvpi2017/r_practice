@@ -1,0 +1,504 @@
+---
+title: data transformation, and basic regularized regression (Ridge
+  and LASSO)
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+---
+
+In this data set, there are sales prices and another 79 explanatory variables describing almost every aspect of residential homes, including housing structure and decoration condition, surrounding facilities of housing, and several indices indicating real estate market. I used these variables to predict the sales prices.
+
+在这个数据里面，79个变量，这79个变量都是反映这个居民家的情况，我用这些变量来预测销售价格
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r import packages, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(formattable)
+library(gridExtra)
+library(moments) # for skewness() func
+library(corrplot)
+library(glmnet)
+```
+
+## 1. Data exploration and transformation 数据探索和转换
+
+### 1.1 Overview of the data #从大体上看看数据
+
+#### 1.1.1 Read the data
+
+Delete the column `Id` since We do not need this feature. Divide this training data into `xtr` and `ytr`.
+删掉id这一列， 然后将数据分成xtr， ytr。也就是将saleprice这个变量提出来
+```{r read the data, message=FALSE}
+# delete the column id that we do not need
+train = read_csv('house.csv') %>% dplyr::select(-'Id') 
+xtr = train %>% dplyr::select(-'SalePrice')
+ytr = train %>% dplyr::select('SalePrice')
+#xte = read_csv('../input/test.csv') %>% dplyr::select(-'Id')
+#xtr = rbind(xtr, xte)
+```
+
+#### 1.1.2 Dimension
+
+```{r Dimension}
+sprintf("There are %d training samples and %d explanatory features.", dim(xtr)[1], dim(xtr)[2])
+```
+
+#### 1.1.3 Types of explanatory variables
+
+```{r Types}
+table(sapply(xtr, class))
+```
+
+### 1.2 Missing data processing
+数据里面有缺失值，下面统计缺失值在各列的出现情况
+There are many `NA` in this data set. The plot below shows the proporation of the `NA` for each variables that have `NA`.
+
+```{r}
+
+miss = xtr %>% 
+  sapply(is.na) %>% 
+  colSums() %>% 
+  sort(decreasing = TRUE)
+
+miss = (miss[miss > 0] / dim(xtr)[1]) %>% stack()
+miss$values = percent(miss$values)
+colnames(miss) = c('Proportion of NA', 'Variables')
+
+miss %>% 
+  ggplot(data=., aes(y=`Proportion of NA`, x=`Variables`)) + 
+  geom_bar(stat="identity") +
+  coord_flip()
+
+```
+
+However, most of them are meaningful but not missing data. For exmaple, the `NA` in the variables of `BsmtQual`, `BsmtCond`, `GarageQual`, `GarageCond` mean that this house do not have a basement or a garage. 
+
+After reading the data description, I fill in these meaningful `NA` with 'None'. For the missing data, I fill in the `NA` of numerical variables with median value, and fill in the `NA` of categorical variables with mode value.
+
+有的缺失值都是有意义的，比如变量`BsmtQual`, `BsmtCond`, `GarageQual`, `GarageCond`里面的缺失值都是代表他们没有地下室或者菜园
+读入数据说明，我将这些缺失值的空填满。如果是连续型数据，我用中位数来替代
+```{r}
+
+# fill in NA with median value
+xtr$LotFrontage[is.na(xtr$LotFrontage)] = median(xtr$LotFrontage, na.rm = TRUE) 
+
+# fill in NA with mode value 
+getmode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+fill_mode_var = c('MSZoning', 'Utilities', 'Functional', 'Electrical', 'KitchenQual', 'Exterior1st', 'Exterior2nd', 'SaleType')
+
+for (v in fill_mode_var){
+  xtr[v][is.na(xtr[v])] = getmode(na.omit(xtr[v][[1]]))
+}
+
+# fill in NA with 'None'
+fill_none_var = c('PoolQC', 'MiscFeature','Alley', 'Fence', 'FireplaceQu', 'GarageType', 'GarageFinish', 'GarageQual', 'GarageCond', 'GarageYrBlt', 'GarageArea', 'GarageCars', 'BsmtFinSF1', 'BsmtFinSF2', 'BsmtUnfSF','TotalBsmtSF', 'BsmtFullBath', 'BsmtHalfBath', 'BsmtQual', 'BsmtCond', 'BsmtExposure', 'BsmtFinType1', 'BsmtFinType2', 'MasVnrType', 'MasVnrArea')
+
+for (v in fill_none_var){
+  xtr[v][is.na(xtr[v])] = 'None'
+}
+
+```
+
+### 1.3 Label encoding
+
+Some categorical variables may have numerical order, which means they should be ordinal variables. I encode labels for these variables. For example, 'Ex'(excellent)=5, 'Gd'(good)=4, 'TA'(typical)=3, 'Fa'(fair)=2, 'Po'(poor)=1, 'None'=0. 
+因为有的是分类变量，我将他们编码，比如'Ex'(excellent)=5, 'Gd'(good)=4, 'TA'(typical)=3, 'Fa'(fair)=2, 'Po'(poor)=1, 'None'=0.
+ex(good) 代表为5分
+```{r warning=FALSE}
+
+mapping = c('Ex'=5,'Gd'=4,'TA'=3,'Fa'=2,'Po'=1,'None'=0)
+ordinal_var = c('BsmtQual', 'BsmtCond', 'GarageQual', 'GarageCond', 'ExterQual', 'ExterCond', 'HeatingQC', 'PoolQC', 'KitchenQual')
+
+for (v in ordinal_var){
+  xtr[v] = c('Ex'=5,'Gd'=4,'TA'=3,'Fa'=2,'Po'=1,'None'=0)[xtr[v][[1]]]
+}
+xtr['BsmtFinType1'] = c('GLQ'=6,'ALQ'=5,'BLQ'=4,'Rec'=3,'LwQ'=2,'Unf'=1,'None'=0)[xtr['BsmtFinType1'][[1]]]
+xtr['BsmtFinType2'] = c('GLQ'=6,'ALQ'=5,'BLQ'=4,'Rec'=3,'LwQ'=2,'Unf'=1,'None'=0)[xtr['BsmtFinType2'][[1]]]
+xtr['Functional'] = c('Typ'=7,'Min1'=6,'Min2'=5,'Mod'=4,'Maj1'=3,'Maj2'=2,'Sev'=1,'Sal'=0)[xtr['Functional'][[1]]]
+xtr['Fence'] = c('GdPrv'=4,'MnPrv'=3,'GdWo'=2,'MnWw'=1,'None'=0)[xtr['Fence'][[1]]]
+xtr['BsmtExposure'] = c('Gd'=4,'Av'=3,'Mn'=2,'No'=1,'None'=0)[xtr['BsmtExposure'][[1]]]
+xtr['GarageFinish'] = c('None'=0, 'Unf'=1, 'RFn'=2, 'Fin'=3)[xtr['GarageFinish'][[1]]]
+xtr['LandSlope'] = c('Sev'=1, 'Mod'=2, 'Gtl'=3)[xtr['LandSlope'][[1]]]
+xtr['LotShape'] = c('IR3'=1, 'IR2'=2, 'IR1'=3, 'Reg'=4)[xtr['LotShape'][[1]]]
+xtr['PavedDrive'] = c('N'=1, 'P'=2, 'Y'=3)[xtr['PavedDrive'][[1]]]
+xtr['Street'] = c('Grvl'=1, 'Pave'=2)[xtr['Street'][[1]]]
+xtr['Alley'] = c('None'=0, 'Grvl'=1, 'Pave'=2)[xtr['Alley'][[1]]]
+xtr['CentralAir'] = c('N'=0, 'Y'=1)[xtr['CentralAir'][[1]]]
+
+xtr[xtr == 'None'] = 0
+
+for (v in colnames(xtr)){
+  x = xtr[v][[1]]
+  xtr[v] = ifelse(is.na(as.numeric(x)), x, as.numeric(x))
+}
+
+```
+
+### 1.4 Log transformation of target variable (SalePrice)
+
+The target variable is `SalePrice`, which is a numerical variable. The 2 plots in the left part below are the density distribution and QQ plot for original `SalePrice`. We can observe that it is kind of like skew normal distribution. 
+
+Let us try log-transformation to reduce the skewness. The 2 plots in the right part below are the density distribution and QQ plot for `log(1+SalePrice)`. It is much better after log-transformation, with respect to the skewness and QQ plot. 
+我们的目标量是`Saleprice`，是一个数值型变量，用qqplot和核密度检验，发现他是偏态的，所以，我们取个对数加1
+```{r Log transformation, fig.height=10, fig.width=10}
+ytr_list = as.list(ytr)$SalePrice
+
+# for distribution plot
+dist = function(li){
+  ggplot(li) + 
+  geom_histogram(aes(x=li[[1]], y=..density..), position="identity", bins = 100) + 
+  geom_density(aes(x=li[[1]], y=..density..), size = 1)
+}
+
+# for QQ plot
+qq = function(li){
+  ggplot() + 
+  aes(sample = li) + 
+  geom_qq(distribution = qnorm) + 
+  geom_qq_line(col = "red")
+}
+
+dist_ytr = dist(ytr) + 
+  ggtitle("Original distribution of SalePrice") + 
+  xlab(paste('SalePrice', '\n', 'Skewness:', round(skewness(ytr)[[1]], 4)))
+
+dist_log_ytr = dist(log(ytr)) + 
+  ggtitle("After log transformation") + 
+  xlab(paste('log(SalePrice)', '\n', 'Skewness:', round(skewness(log(ytr))[[1]], 4)))
+
+qq_ytr = qq(ytr_list) + ggtitle("QQ plot for original SalePrice")
+qq_log_ytr = qq(log(ytr_list)) + ggtitle("After log transformation")
+
+grid.arrange(dist_ytr, dist_log_ytr, qq_ytr, qq_log_ytr, ncol=2)
+
+log1p_ytr = log(1 + ytr)
+colnames(log1p_ytr) = 'log1p_SalePrice'
+```
+
+### 1.5 Box-Cox transformation
+这个就叫Box-Cox 转换，因为很多数值型的变量都是偏态的，我用Box-Cox转换一下，希望可以变成正态分布
+There are many variables that are highly skewed. I used the Box-Cox transformation to reduce the skewness. 
+
+$$
+{ x }_{ \lambda  }^{ ' }  =  \frac { { x }^{ \lambda  } - 1 }{ \lambda  }, when \ \lambda \neq 0. 
+$$
+$$
+{ x }_{ \lambda  }^{ ' }  =  log(x), when \ \lambda = 0. 
+$$
+
+I use for-loops to search the parameter $\lambda$, and save the data to csv file before and after the Box-Cox transformation. 
+我用for循环，搜索参数，然后保存数据
+```{r Box-Cox}
+
+num_names = colnames(xtr)[sapply(xtr, class) == "numeric"]
+
+xtr_before_boxcox = xtr
+
+for (v in num_names){
+  # box-cox need all of the values to be positive
+  xtr[v] = xtr[v] - min(xtr[v]) + 1 # plus the minimun and 1 to prepare for the box-cox
+  # search for the best lambda for the box-cox
+  low = -2
+  up = 2
+  for (i in 1:5){
+    bc = MASS::boxcox(xtr[v][[1]] ~ 1, lambda=seq(low, up, len=(up-low)*100+1), plotit=FALSE)
+    best_lambda = bc$x[which(bc$y == max(bc$y))]
+    if (best_lambda == up){
+      low = best_lambda - 0.01
+      up = 2*up
+    }
+    else if(best_lambda == low){
+      up = best_lambda + 0.01
+      low = 2*low
+    }
+    else{break}
+    # if (i > 3){print(v)}
+  }
+  # box-cox transformation
+  xtr[v] = (xtr[v] ^ best_lambda - 1) / best_lambda 
+}
+
+xtr_after_boxcox = xtr
+```
+下面的图就是一个对比图，左边是偏态的原始数据，右边是经过box-cox转发的数据， 可视化
+The plots below are the density distribution of numerical variables. The previous plot is the data before box-cox transformation, and the latter one is the data after box-cox transformation.  
+
+**The darker plots refer to the higher skewness.** We can see that the latter plot (after box-cox) are lighter than the previous one (before box-cox), which means the box-cox transformation significantly reduce the skewness of these numerical variables.
+
+```{r density, fig.height=3, fig.width=3, message=FALSE, warning=FALSE}
+
+den_skew_plots = function(xtr){
+  num_names = colnames(xtr)[sapply(xtr, class) == "numeric"]
+  p_li = list()
+  
+  for (num_var in num_names){
+    data = xtr[, num_var]
+    colnames(data) = 'temp_name'
+    grey_degree = 100 - as.integer(min(60, 10*(abs(skewness(data)))))
+        
+    p = ggplot(data = data, aes(x = `temp_name`)) + 
+      geom_line(stat = 'density', size=1) +
+      xlab(paste(num_var, '\n', 'Skew:', round(skewness(data)[[1]], 4))) + 
+      theme(panel.background = element_rect(fill = paste0('grey', grey_degree)))
+    
+    p_li = c(p_li, list(p))
+  }
+  do.call("grid.arrange", c(p_li, ncol=6))
+}
+
+```
+
+
+
+### 1.6 Get the dummy variables
+
+There are some categorical variables that do not have numerical order, we cannot transform them to ordinal variables. I converted them to dummy variables. 
+
+After these data transformations, all of the data are in the numerical format.
+
+有很多分类数据，对他们做dummy编码处理（也叫哑变量处理）
+数据处理之后，都变成数值型数据了
+```{r dummy variables}
+# dummy variables
+xtr = xtr %>% 
+  as.data.frame() %>% 
+  fastDummies::dummy_cols() %>% 
+  .[colnames(.)[sapply(., class) != "character"]]
+```
+
+### 1.7 Standardize data to standard Score (Z score)
+
+Different variables have different scales, which may have impacts on our models. 
+
+As for regularized linear regression, we need to penalize the size of the coefficients, which will be affected by the different scales of variables. So it is necessary to standardize the variables to eliminate the influence of the different scales.
+
+I centered the data and changed the units to standard deviations by subtracting mean and dividing by standard deviation.
+这个其实主要是用在连续型数据上面，因为不同的数据有不同的范围，所以，对他们进行标准化处理。就是原始数据减去均值再除以标准差
+
+```{r Standardize}
+for (v in colnames(xtr)){
+  xtr[v] = (xtr[v] - mean(xtr[v][[1]])) / sd(xtr[v][[1]]) 
+}
+```
+
+### 1.8 Save the transformed data
+
+All of the transformations are done. Now I save the data to csv file. 
+这一步把数据保存一下，防止程序中断了
+```{r save}
+tr = xtr[1:nrow(xtr), ] %>% cbind(log1p_ytr) # train_after_transformation
+xte = xtr[nrow(xtr)+1 : nrow(xtr), ] # x_test_after_transformation
+sprintf('After data transformation, there are %d explanatory variables.', dim(xtr)[2])
+
+```
+
+
+### 1.9 Correlation matrix
+
+Correlation is a significant measurement for the importance of variables. The variables in the plot blow are ordered by its absolute value of correlation with the response variable `log1p_SalePrice`. Since there are too many variables, I select out the variables whose absolute value of correlation with `log1p_SalePrice` are greater than 0.5.
+
+We can notice that the variable `OverallQual`(overall quality) has the highest correlation with `log1p_SalePrice`, which means it is highly positive correlated with our target variable. 
+下面就是各个变量之间的相关性可视化，这样更加直观一些。可以发现 `OverallQual`(overall quality)这个变量和 `log1p_SalePrice`有很强的相关性。
+```{r Correlation matrix, fig.height=15, fig.width=15, message=FALSE, warning=FALSE}
+
+xtr = tr %>% dplyr::select(-'log1p_SalePrice')
+ytr = tr %>% dplyr::select('log1p_SalePrice')
+
+cor_numVar = cor(cbind(xtr, ytr), use="pairwise.complete.obs") # correlations of all numeric variables
+# sort on decreasing correlations with log1p_SalePrice      
+cor_sorted = as.matrix(sort(cor_numVar[, 'log1p_SalePrice'], decreasing = TRUE))
+  
+# select only high corelations
+CorHigh = names(which(apply(cor_sorted, 1, function(x) abs(x)>0.5)))
+cor_numVar = cor_numVar[CorHigh, CorHigh]
+
+corrplot.mixed(cor_numVar, tl.col="black", tl.pos = "lt")
+
+print('====== High influential variables: =======')
+print(CorHigh)
+
+```
+
+### 1.10 Regression plots for important variables
+
+For the plots below, I use the top 12 influential variables according to their correlation with `log1p_SalePrice`.
+
+The formula on the top of each plot is the simple linear regression fit model and its corresponding R-square. The skyblue points are the scatter plots. The blue lines are the simple linear regression fit lines. The tan lines are the smooth curve fitted by Loess.
+下面的图里面，我用了相关性前12的变量做可视化。天蓝色的点是原始数据点。蓝色的线是简单的线性回归。带有置信区间的是拟合曲线
+```{r fig.height=7, fig.width=10, warning=FALSE}
+
+lm_eqn <- function(data){
+    m <- lm(data[,2] ~ data[,1], data);
+    eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(R)^2~"="~r2, 
+         list(a = as.numeric(format(coef(m)[1], digits = 2)),
+              b = as.numeric(format(coef(m)[2], digits = 2)),
+             r2 = format(summary(m)$r.squared, digits = 4)))
+    as.character(as.expression(eq));
+}
+
+# CorHigh = c("log1p_SalePrice","OverallQual", "GrLivArea" )
+
+reg_plot = function(i){
+  data = cbind(xtr[CorHigh[i]], ytr)
+  p = ggplot(data = data, aes(x=data[,1], y=data[,2])) +
+    geom_point(color = 'skyblue') +
+    geom_smooth(method=loess, fill="tan1", color="tan2") +
+    geom_smooth(method=lm, fill="blue", color="blue") + 
+    xlab(CorHigh[i]) + ylab("log(1+SalePrice)") +
+    annotate("text", x = -Inf, y = Inf, label = lm_eqn(data = data), hjust = 0, vjust = 1, parse = TRUE)
+  
+  return(p)
+  # p_li[[i-1]] = p
+  # p_li = c(p_li, list(p))
+}
+
+# do.call("grid.arrange", c(p_li, ncol=2))
+
+p2 = reg_plot(2)
+p3 = reg_plot(3)
+p4 = reg_plot(4)
+p5 = reg_plot(5)
+p6 = reg_plot(6)
+p7 = reg_plot(7)
+p8 = reg_plot(8)
+p9 = reg_plot(9)
+p10 = reg_plot(10)
+p11 = reg_plot(11)
+p12 = reg_plot(12)
+p13 = reg_plot(13)
+
+grid.arrange(p2,p3,p4,p5,p6,p7, ncol=3)
+grid.arrange(p8,p9,p10,p11,p12,p13, ncol=3)
+
+```
+
+## 2. Modeling
+
+#2.0 Easy model lm
+#这个就是简单的线性模型
+```{r}
+all_data <- cbind(xtr, ytr)
+sample_id <- sample(x = c(1:nrow(all_data)), nrow(all_data) * 0.8)
+train_data <- all_data[sample_id, ]
+test_data <- all_data[-sample_id, ]
+```
+```{r}
+lm_base <- lm(log1p_SalePrice ~ ., data = train_data)
+summary(lm_base)
+```
+
+```{r}
+par(mfrow = c(2, 2))
+plot(lm_base)
+par(mfrow = c(1, 1))
+```
+
+```{r}
+predict_y <- predict(lm_base, newdata = test_data)
+(MSE <- sum((exp(predict_y) - exp(test_data$log1p_SalePrice)) ^ 2) / length(predict_y))
+cat("均方误差：",MSE)
+```
+
+
+
+Since there are too many explanatory variables, we should use regularized linear regression model. We use cross valiation to select the best parameter $\lambda$.
+
+### 2.1 LASSO
+
+```{r build LASSO}
+ytr_li = ytr[[1]]
+xtr_mt = as.matrix(xtr)
+
+cv.lasso = cv.glmnet(xtr_mt, ytr_li, alpha = 1, family="gaussian")
+plot(cv.lasso)
+sprintf('Best lambda for LASSO: %f.', cv.lasso$lambda.min)
+
+coef_lasso = coef(cv.lasso, cv.lasso$lambda.min) %>% 
+  as.matrix() %>% 
+  as.data.frame()
+coef_lasso$abs = abs(coef_lasso[,1])
+
+print('====== Variables with top 20 largest absolute value of coeficients. ======')
+coef_lasso$abs %>% 
+  order(coef_lasso$abs, decreasing = TRUE) %>% 
+  coef_lasso[., ] %>% 
+  head(20) %>% 
+  dplyr::select(-'abs')
+
+```
+
+```{r test LASSO, message=FALSE}
+xte_mt = xte %>% as.matrix()
+
+# Final model with lambda.min
+lasso.model = glmnet(xtr_mt, ytr_li, alpha = 1, family = "gaussian", lambda = cv.lasso$lambda.min)
+# Make predictions on training data
+lasso_pre_tr = lasso.model %>% predict(newx = xtr_mt)
+sprintf('Training RMSE of LASSO: %f.', sqrt(mean((ytr_li - lasso_pre_tr)^2))) # training RMSE
+# Make predictions on test data
+lasso_pre_te = lasso.model %>% predict(newx = xte_mt)
+# write.csv((exp(lasso_pre_te)-1), '../data/lasso_pre_te.csv')
+# test RMSE 0.12575
+```
+
+
+
+### 2.2 Ridge regression
+
+```{r build ridge regression}
+ytr_li = ytr[[1]]
+xtr_mt = as.matrix(xtr)
+
+cv.ridge = cv.glmnet(xtr_mt, ytr_li, alpha = 0, family="gaussian")
+plot(cv.ridge)
+sprintf('Best lambda for ridge regression: %f.', cv.ridge$lambda.min)
+coef_ridge = coef(cv.ridge, cv.ridge$lambda.min) %>% 
+  as.matrix() %>% 
+  as.data.frame()
+coef_ridge$abs = abs(coef_ridge[,1])
+
+print('====== Variables with top 20 largest absolute value of coeficients. ======')
+coef_ridge$abs %>% 
+  order(coef_ridge$abs, decreasing = TRUE) %>% 
+  coef_ridge[., ] %>% 
+  head(20) %>% 
+  dplyr::select(-'abs')
+
+```
+
+```{r test ridge regression, message=FALSE}
+xte_mt = xte %>% as.matrix()
+
+# Final model with lambda.min
+ridge.model = glmnet(xtr_mt, ytr_li, alpha = 0, family = "gaussian", lambda = cv.ridge$lambda.min)
+# Make predictions on training data
+ridge_pre_tr = ridge.model %>% predict(newx = xtr_mt)
+sprintf('Training RMSE of ridge regression: %f.', sqrt(mean((ytr_li - ridge_pre_tr)^2))) # training RMSE
+# Make predictions on test data
+ridge_pre_te = ridge.model %>% predict(newx = xte_mt)
+# write.csv((exp(ridge_pre_te)-1), '../data/ridge_pre_te.csv')
+# test RMSE 0.13306
+```
+
+
+
+### 2.3 Summary
+
+From the test RMSE, we can conclude that LASSO is better than ridge regression for this problem. 
+
+From the coeficients of both two reguralized linear regression models, the variables `GrLivArea`, `OverallQual`, `1stFlrSF`, `TotalBsmtSF`, `OverallCond` and `LotArea` have signigiantly positive influence of response variable `SalePrice`. The variables `MSZoning_C (all)` and `RoofMatl_ClyTile` have signigiantly negative influence.
+
+通过查看RMSE 可以得出lasso比ridge更好一点，简单的lm太差了，
+通过这两个模型的残差，可以看出变量`GrLivArea`, `OverallQual`, `1stFlrSF`, `TotalBsmtSF`, `OverallCond` and `LotArea`和相应变量‘Saleprice’有很强的正相关影响，
+`MSZoning_C (all)` and `RoofMatl_ClyTile`对`SalePrice`有很强的负相关影响
+
+

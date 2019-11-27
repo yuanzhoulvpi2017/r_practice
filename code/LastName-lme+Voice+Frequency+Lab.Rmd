@@ -1,0 +1,278 @@
+---
+title: "Mixed Model Voice Frequencies Lab"
+author: "Your Name"
+date: 'Due: 10/10/2019'
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+
+## Context
+
+Is there a difference in frequencies for male and female voices.  If so, by how much? 
+Also – does a person’s “Attitude” change the frequency?  If so, by how much?
+
+There were 10 women and 10 men.  Each voice was measured in 7 different scenarios 2 times, once each for “Polite” or “Informal” attitude. 
+
+A subset of the data that was used to answer these questions can be found here:
+<http://www.bodowinter.com/tutorial/politeness_data.csv>
+
+The difference in politeness level is represented in the column called `attitude`. In that column, `pol` stands for polite and `inf` for informal. Sex is represented as `F` and `M` in the column `gender`. The dependent measure is `frequency`, which is the voice pitch measured in Hertz (Hz). To remind you, higher values mean higher pitch.
+
+Use this data to complete the following lab.  At the end of the lab are some final notes and comments provided by the author of this work: Bodo Winter at University of California, Merced
+
+## Part 0.
+
+For a start, we need to install and load the R package `lme4` (Bates, Maechler & Bolker, 2012). 
+
+```{r}
+# load package library
+
+library(lme4)
+
+```
+
+
+Now, you have the function `lmer()` available to you, which is the mixed model equivalent of the function `lm()`.
+ 
+Load the data set linked above (directly from the URL) and save the object as a dataframe called “politeness”.
+
+```{r}
+# read politeness data into R from URL
+
+politeness= read.csv("http://www.bodowinter.com/tutorial/politeness_data.csv")
+
+```
+
+
+## Part 1.
+
+Now, you have a data frame called politeness in your R environment. You can familiarize yourself with the data by using `head()`, `tail()`, `summary()`, `str()`, `colnames()`... or whatever commands you commonly use to get an overview of a dataset. 
+
+```{r}
+head(politeness)
+tail(politeness)
+summary(politeness)
+str(politeness)
+colnames(politeness)
+
+```
+
+
+
+Also, it is always good to check for missing values: `favstats(~ frequency, data = politeness)` from the `mosaic` package is one approach. Alternatively, you can use the following: `which(!complete.cases(politeness))` which will report incomplete rows using *all* variables, not just the `frequency` variable.
+
+#------1------
+```{r, warning=FALSE}
+
+library(mosaic)
+favstats(~ frequency, data = politeness)
+which(!complete.cases(politeness))
+
+```
+
+
+
+
+## Part 2.  Some EDA
+
+Show side-by-side boxplots: 
+`boxplot(frequency ~ attitude * gender, col = c("white","lightgray"), politeness)`
+#------2------
+```{r}
+# Side by side boxplots of voice frequency by attitude and gender
+boxplot(frequency ~ attitude * gender, col = c('white', 'lightgray'), data = politeness)
+
+```
+
+
+What other plots may be useful at this point?  Consider univariate and bi-variate graphs and summaries of the variables.  
+
+A)  **Include 2 figures in this section, and comment on what you observe from the figures. **
+#------3------
+```{r}
+library(ggplot2)
+
+ggplot(data = politeness, aes(x = subject, y = frequency, fill = attitude)) +
+  geom_col() 
+```
+
+#------4------
+```{r}
+library(lattice)
+
+new_data1 <- politeness[]
+new_data1$attitude <- factor(new_data1$attitude)
+colors <- c('red', 'blue')
+lines <- c(1, 2)
+points <- c(16, 17)
+
+key_trans <- list(title = "layout",
+                  space = "bottom", columns=2,
+                  text = list(levels(new_data1$attitude)),
+                  points = list(pch = points, col = colors),
+                  lines = list(col = colors, lty = lines),
+                  cex.title=1, cex=0.9)
+densityplot(~frequency, data = new_data1,
+            groups = attitude, 
+            main = "inf dis by att",
+            xlab = "attitude",
+            pch = points, lty = lines, col = colors, lwd = 2, jitter = 0.005, 
+            key = key_trans)
+
+
+```
+
+
+
+## Part 3.  Model Building
+
+Fit the following mixed effects model for voice frequency vs attitude with a random intercept for each subject & scenario:
+
+`politeness.model <- lmer(frequency ~ attitude + (1|subject) + (1|scenario), data=politeness)`
+
+```{r}
+# linear mixed effects model
+politeness.model <- lmer(frequency ~ attitude + (1|subject) + (1|scenario), data=politeness)
+```
+
+
+The last command created a model that used the fixed effect `attitude` (polite vs. informal) to predict voice pitch, controlling for by-subject and by-item variability. We saved this model in the object `politeness.model`. `Use summary()` to display the full result: 
+
+```{r}
+# model summary
+summary(politeness.model)
+
+```
+
+
+
+
+#------5------把下面结果写上去bcd都写出来了
+
+B) **Explain briefly why attitude is modeled using a fixed effect (and not random).**
+answer b
+
+
+C) **Explain briefly why subject and scenario are modeled as random effects (and not fixed).**
+
+answer c
+
+D) **Calculate the Intraclass Correlation Coefficients:**
+
+answerd
+
+```{r}
+# calculate ICCs
+library(sjstats)
+performance::icc(politeness.model)
+
+```
+
+
+
+E) **Add Gender as a Fixed Effect to your model.  How did adding “gender” change the amount of variability associated with the random effects?**
+
+```{r}
+# add gender to the model
+politeness.e <- lmer(frequency ~ gender + (1|subject) + (1|scenario), data=politeness)
+summary(politeness.e)
+performance::icc(politeness.e)
+
+```
+
+
+
+## Part 4. Testing
+
+#### P-values:
+
+>"Unfortunately, p-values for mixed models aren’t as straightforward as they are for the linear model. There are multiple approaches, and there’s a discussion surrounding these, with sometimes wildly differing opinions about which approach is the best."  See page 160 of your BYSH text for comments on significance and the use of REML.
+
+
+F) **Conduct a Likelihood Ratio Test for the effect of Attitude (after adjusting for gender) in your mixed model:**
+
+```{r}
+politeness.null = lmer(frequency ~ gender +(1|subject) + (1|scenario), data=politeness,REML=FALSE)
+politeness.model = lmer(frequency ~ attitude +gender + (1|subject) + (1|scenario),data=politeness, REML=FALSE)
+anova(politeness.null,politeness.model)
+
+```
+
+
+
+
+
+G) **Provide a formal statement of your conclusion to the question:  Does attitude effect frequency of the voice?  (Your statement should include the test statistic, p-value, and estimate of change with the standard error).**
+
+answer g
+
+
+## Part 5.  Random Intercepts versus Slopes
+
+Let’s have a look at the coefficients of the model by subject and by item (use `coef()`): 
+
+```{r}
+# model coefficients
+
+politeness.model <- lmer(frequency ~ attitude + (1|subject) + (1|scenario), data=politeness)
+coef(politeness.model)
+
+
+```
+
+
+
+
+
+The fixed effects (`attitude` and `gender`) are identical for all subjects and items. Our model is what is called a random intercept model. In this model, we account for baseline-differences in pitch, but we assume that whatever the effect of politeness is, it’s going to be the same for all subjects and items. 
+But is that a valid assumption? 
+
+In fact, often times it’s not – it is quite expected that some scenarios would elicit more or less politeness. That is, the effect of politeness might be different for different scenarios Likewise, the effect of politeness might be different for different subjects. For example, it might be expected that some people are more polite, others less. So, what we need is a random slope model, where subjects and items are not only allowed to have differing intercepts, but where they are also allowed to have different slopes for the effect of politeness. 
+
+This is how we would do this in R: 
+
+`politeness.model <- lmer(frequency ~ attitude + gender + (1 + attitude | subject) + 
+                                     (1 + attitude | scenario), data = politeness, REML = FALSE)`
+
+```{r}
+# fit random slopes model
+politeness.model <- lmer(frequency ~ attitude + gender + (1 + attitude | subject) + (1 + attitude | scenario), data = politeness, REML = FALSE)
+```
+
+
+Note that the only thing that we changed is the random effects, which now look a little more complicated. The notation `(1 + attitude | subject)` means that you tell the model to expect differing baseline-levels of frequency (the intercept, represented by `1`) as well as differing responses to the main factor in question, which is `attitude` in this case. You then do the same for scenarios. 
+
+Have a look at the coefficients of this updated model by typing in the following: 
+
+```{r}
+# coefficients of random slopes model
+coef(politeness.model)
+
+```
+
+
+
+
+## Notes from B Winter:
+
+We’ve talked a lot about the many different assumptions of the linear model. The good news is: Everything that we discussed in the context of the linear model applies straightforwardly to mixed models. So, you also have to worry about collinearity and influential data points. And you have to worry about homoscedasticity (and potentially about lack of normality). But you don’t have to learn much new stuff. The way you check these assumptions in R is exactly the same as in the case of the linear model, say, by creating a residual plot, a histogram of the residuals or a Q-Q plot. 
+Independence, being the most important assumption, requires a special word: One of the main reasons we moved to mixed models rather than just working with linear models was to resolve non-independencies in our data. However, mixed models can still violate independence … if you’re missing important fixed or random effects. So, for example, if we analyzed our data with a model that didn’t include the random effect “subject”, then our model would not “know” that there are multiple responses per subject. This amounts to a violation of the independence assumption. So choose your fixed effects and random effects carefully, and always try to resolve non-independencies.
+
+#### The write-up 
+
+A lot of tutorials don’t cover how to write up your results. And that’s a pity, because this is a crucial part of your study!!! The most important thing: You need to describe the model to such an extent that people can reproduce the analysis. So, a useful heuristic for writing up your results is to ask yourself the question “Would I be able to re-create the analysis given the information that I provided?” If the answer is “yes” your write-up is good. In particular, this means that you specify all fixed effects and all random effects, and you should also mention whether you have random intercepts or random slopes. For reporting individual results, you can stick to my example with the likelihood ratio test above. Remember that it’s always important to report the actual coefficients/estimates and not just whether an effect is significant. You should also mention standard errors. Another important thing is to give enough credit to the people who put so much of their free time into making lme4 and R work so efficiently. So let’s cite them! It’s also a good idea to cite exactly the version that you used for your analysis. You can find out your version and who to cite by typing in `citation()` for your R-version and `citation("lme4")` for the lme4 package. Finally, it’s important that you mention that you checked assumptions, and that the assumptions are satisfied. 
+
+```{r}
+citation()
+citation("lme4")
+```
+
+
+So here’s what I would have written for the analysis that we performed in this tutorial: 
+
+> "We used R (R Core Team, 2012) and lme4 (Bates, Maechler & Bolker, 2012) to perform a linear mixed effects analysis of the relationship between pitch and politeness. As fixed effects, we entered politeness and gender (without interaction term) into the model. As random effects, we had intercepts for subjects and items, as well as by-subject and by-item random slopes for the effect of politeness. Visual inspection of residual plots did not reveal any obvious deviations from homoscedasticity or normality. P-values were obtained by likelihood ratio tests of the full model with the effect in question against the model without the effect in question." 
+
+See original document for a complete list of references:  <http://www.bodowinter.com/tutorial/bw_LME_tutorial2.pdf>

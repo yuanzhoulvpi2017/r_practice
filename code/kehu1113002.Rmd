@@ -1,0 +1,139 @@
+---
+title: "R Notebook"
+output:
+  word_document: default
+  html_notebook: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+##这个是第一个1小时检查得到的。
+##H-distribution 
+##在原来的基础上主要是改poissonmean = 120。
+##threshold = 1,代表一个小时。H
+##maxsamples模拟次数，你可以自己改。
+
+```{r}
+
+poissonmean <- 120 #<-- Will change based on the distribution
+maxSamples = 500#<-- Will change based on the simulation choices
+threshold = 1 #<-- The process will stop generating arrivals after this value
+
+samplestogenerate=floor(10*threshold*max(poissonmean,1))
+first_arrive <- rexp(samplestogenerate,poissonmean)
+
+
+#############################################
+# Simulate the arrival intervals, then count #
+# number required to pass the threshhold     #
+##############################################
+outcomes=rep(0,maxSamples)
+averages=rep(0,maxSamples)
+
+for (j in seq(from=1,to=maxSamples,by=1)) {
+  
+  arrivalintervals = rexp(samplestogenerate,poissonmean)
+  
+  poissontotal=arrivalintervals[1]
+  
+  if(poissontotal > threshold) 
+  {
+    outcomes[j]=0
+  } else
+  {
+    while(poissontotal<threshold)
+    {
+      outcomes[j]=outcomes[j]+1
+      poissontotal=poissontotal+arrivalintervals[outcomes[j]+1]
+      
+    }
+  }  
+  
+  #Compute an average of all outcomes of the experiment at each stage  
+  averages[j]=mean(outcomes[1:j])
+}
+
+
+
+```
+
+#第二个结果就是H < E(H)
+```{r}
+#Display the mean value of the Poisson random variable over all simulations
+cat("Observed mean value of the Poisson R.V. in a simulation with",maxSamples,  "data points = ",averages[maxSamples],"\n")
+cat("Proportion of the observed values of the Poisson R.V. below the mean in a simulation with",maxSamples,  "data points = ",length(outcomes[outcomes<=poissonmean])/maxSamples,"\n")
+
+```
+
+##这个是第一个1分钟检查得到的。
+##H-distribution 
+##在原来的基础上主要是改poissonmean = 120。
+##threshold = 1/60,代表一个小时的60分之一，也就是1分钟。M
+##maxsamples模拟次数，你可以自己改。
+
+```{r}
+
+poissonmean <- 120 #<-- Will change based on the distribution
+maxSamples = 500#<-- Will change based on the simulation choices
+threshold = 1/60 #<-- The process will stop generating arrivals after this value
+
+#samplestogenerate=floor(10*threshold*max(poissonmean,1))
+first_arrive <- rexp(samplestogenerate,poissonmean)
+
+
+#############################################
+# Simulate the arrival intervals, then count #
+# number required to pass the threshhold     #
+##############################################
+outcomes=rep(0,maxSamples)
+averages=rep(0,maxSamples)
+
+for (j in seq(from=1,to=maxSamples,by=1)) {
+  
+  arrivalintervals = rexp(samplestogenerate,poissonmean)
+  
+  poissontotal=arrivalintervals[1]
+  
+  if(poissontotal > threshold) 
+  {
+    outcomes[j]=0
+  } else
+  {
+    while(poissontotal<threshold)
+    {
+      outcomes[j]=outcomes[j]+1
+      poissontotal=poissontotal+arrivalintervals[outcomes[j]+1]
+      
+    }
+  }  
+  
+  #Compute an average of all outcomes of the experiment at each stage  
+  averages[j]=mean(outcomes[1:j])
+}
+
+
+
+```
+
+##第二个结果就是M < E(M)
+##要注意outcomes<=(poissonmean/60)这个里面要除以60，代表120被60除，也就是2
+```{r}
+#Display the mean value of the Poisson random variable over all simulations
+cat("Observed mean value of the Poisson R.V. in a simulation with",maxSamples,  "data points = ",averages[maxSamples],"\n")
+cat("Proportion of the observed values of the Poisson R.V. below the mean in a simulation with",maxSamples,  "data points = ",length(outcomes[outcomes<=(poissonmean/60)])/maxSamples,"\n")
+
+```
+
+##############################################3
+##U-distrubution
+## U < E(U)
+##############################################
+```{r}
+
+arrivalintervals = rexp(samplestogenerate,poissonmean)
+sum(arrivalintervals < mean(arrivalintervals)) / length(arrivalintervals)
+
+```
+
+

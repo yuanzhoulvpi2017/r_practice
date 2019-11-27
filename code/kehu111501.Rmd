@@ -1,0 +1,225 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  word_document: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+
+##question1
+
+```{r}
+data_q1 <- read.csv("protein.csv")
+```
+
+```{r}
+head(data_q1)
+```
+
+
+```{r}
+names(data_q1)
+```
+
+#a
+```{r}
+summary(data_q1)
+```
+
+#b
+```{r}
+par(las = 2)
+boxplot(data_q1[, -1])
+```
+
+#c
+```{r}
+cor(data_q1[, -1])[, 9]
+```
+
+
+#d
+```{r}
+#pairs(data_q1[, -1])
+library(corrplot)
+corr <- cor(data_q1[, -1])
+#corrplot(corr = corr, method="number", col="black", cl.pos="n")
+corrplot.mixed(corr, lower = "number", upper = "pie", tl.col = "black",lower.col = "black", number.cex = 1)
+```
+
+
+
+
+#e
+```{r}
+l95 <- c()
+u95 <- c()
+estimate <- c()
+for (i in c(2:9)) {
+  test_res <- cor.test(data_q1$Fr.Veg, data_q1[, i])
+l95 <- c(l95 , test_res$conf.int[1])
+u95 <- c(u95, test_res$conf.int[2])
+estimate <- c(estimate, test_res$estimate)
+}
+
+
+```
+
+```{r}
+library(ggplot2)
+data_plot2 <- data.frame(x = c(1:8),estimate,
+                         l95, 
+                         u95)
+ggplot(data = data_plot2, aes(x=1:8, y=estimate)) + 
+geom_errorbar(aes(ymin=l95, ymax=u95), width=.1) +
+geom_line() +
+geom_point()
+```
+
+#f
+
+```{r}
+t.test(data_q1$Nuts, mu = mean(data_q1$Starch))
+```
+
+
+##q2
+
+```{r}
+data_q2 <- read.csv("DartPoints.csv")
+which(!complete.cases(data_q2))
+clearn_data_q2 <- data_q2[-which(!complete.cases(data_q2)), ]
+
+```
+#a
+```{r}
+summary(clearn_data_q2)
+```
+
+#b
+
+```{r}
+library(ggplot2)
+ggplot(data = clearn_data_q2, aes(x = Length, y = Width, colour = Name)) + geom_point()
+```
+```{r}
+ggplot(data = clearn_data_q2, aes(x = Length, y = Thickness, colour = Name)) + geom_point()
+```
+
+```{r}
+ggplot(data = clearn_data_q2, aes(x = Length, y = B.Width, colour = Name)) + geom_point()
+```
+```{r}
+ggplot(data = clearn_data_q2, aes(x = Length, y = J.Width, colour = Name)) + geom_point()
+```
+```{r}
+ggplot(data = clearn_data_q2, aes(x = Length, y = H.Length, colour = Name)) + geom_point()
+```
+```{r}
+ggplot(data = clearn_data_q2, aes(x = Length, y = Weight, colour = Name)) + geom_point()
+```
+
+```{r}
+par(mfrow = c(2, 3))
+boxplot(Length ~Blade.Sh, data = clearn_data_q2)
+boxplot(Length ~Base.Sh, data = clearn_data_q2)
+boxplot(Length ~Should.Sh, data = clearn_data_q2)
+boxplot(Length ~Should.Or, data = clearn_data_q2)
+boxplot(Length ~Haft.Sh, data = clearn_data_q2)
+boxplot(Length ~Haft.Or, data = clearn_data_q2)
+par(mfrow = c(1, 1))
+```
+
+#c
+#计算相关性强度
+```{r}
+sort(cor(clearn_data_q2[, c(3:9)])[1, ])
+```
+可以看出length和weight关系最强为0.882。和B.Width关系相关性最差为-0.2832
+
+#下面是相关性检验
+```{r}
+cor.test(clearn_data_q2$Length, clearn_data_q2$Weight)#计算相关性强度
+```
+
+```{r}
+cor.test(clearn_data_q2$Length, clearn_data_q2$B.Width)#计算相关性强度
+```
+
+#d
+```{r}
+boxplot(Weight ~ Blade.Sh, data = clearn_data_q2)
+```
+
+
+```{r}
+ggplot(data = clearn_data_q2, aes(x = Weight, colour = Blade.Sh)) + geom_density()
+```
+
+
+
+##Multiple linear regression:
+#e
+```{r}
+names(clearn_data_q2)
+```
+```{r}
+lm_weight <- lm(Weight ~ Length + Width + Thickness, data = clearn_data_q2)
+summary(lm_weight)
+```
+上面结果可以看出Length + Width和截距项的系数对weight显著，所以
+回归结果为$Weight = -8.858 +0.19398 * Length + 0.28619 * Width$
+
+#f
+```{r}
+par(mfrow = c(2, 2))
+plot(lm_weight)
+par(mfrow = c(1, 1))
+```
+
+#这个g和前面的e 和 f是一起的，就是对e的那个数学公式说一下，还有各个系数显著性写一下。
+
+
+#d
+```{r}
+lm_all<- lm(Weight ~ ., data = clearn_data_q2[, -1])
+best_lm <- step(lm_all)
+summary(best_lm)
+```
+
+#prediction
+```{r}
+names(clearn_data_q2)
+```
+```{r, warning=FALSE}
+preddata = data.frame("Name"   = "Travis",
+                      "Length" = 70,
+                      "Width"  =  60,
+                      "Thickness" =  50,
+                      "B.Width"   =  50,
+                      "J.Width"   =  50,
+                      "H.Length"  =  60,
+                      "Weight"    =  0,
+                      "Blade.Sh" = 'R',
+                      "Base.Sh"   =  'R',
+                      "Should.Sh" =  'S',
+                      "Should.Or" =  'B',
+                      "Haft.Sh"   =  'E',
+                      "Haft.Or" = 'P')
+predict(best_lm, newdata = preddata,interval="confidence")
+```
+
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.

@@ -1,0 +1,48 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r}
+data <- read.csv("wtp_factorial.csv")
+library(plyr)
+```
+
+
+```{r}
+(tg_1 <- ddply(data, 
+               c("population", "rank", "type"), #依次选择变量，
+               summarise, mean_test = mean(wtp))) 
+#这里的mean是求均值，你可以改为别的统计量，sum、sd、median
+```
+
+```{r}
+(tg_2 <- ddply(data, c("type", "rank"), 
+              summarise, test_result = sd(wtp)))
+```
+
+
+```{r}
+(tg_2 <- ddply(data, c("type", "rank"), 
+              summarise, 
+              test1 = sd(wtp), 
+              test2 = mean(wtp),
+              test3 = median(wtp))) #可以无限加函数，都可以
+```
+
+```{r}
+my_test_f <- function(x) {
+  return(length(x))
+}
+
+(tg_2 <- ddply(data, c("type", "rank"), 
+              summarise, 
+              test1 = sd(wtp), 
+              test2 = mean(wtp),
+              test3 = median(wtp),
+              test4 = my_test_f(wtp)))
+```
+
